@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+<meta name="theme-color" content="#0C0C0D" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="CutTracker" />
+<link rel="apple-touch-icon" href="/apple-touch.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<title>CutTracker</title>
+<style>
+  html,body{margin:0;background:#0C0C0D;min-height:100vh;min-height:100dvh;overscroll-behavior:none}
+  #root{min-height:100vh;min-height:100dvh}
+</style>
+<script src="/sql-wasm.js"></script>
+<script>window.__SQL_WASM__="/sql-wasm.wasm";</script>
+</head>
+<body>
+<div id="root"></div>
+<script type="module" src="/src/main.jsx"></script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))}</script>
+</body>
+</html>
