@@ -1,0 +1,10 @@
+export const todayStr = () => new Date().toISOString().slice(0, 10);
+export const fmtDay = (iso) => new Date(iso + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+export const fmtFull = () => new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+export const epley = (w, r) => Math.round(w * (1 + r / 30));
+export const topReps = (range) => parseInt(String(range).split("-").pop(), 10);
+export const lowReps = (range) => parseInt(String(range).split("-")[0], 10);
+export const round5 = (n) => Math.round(n / 5) * 5;
+export const round10 = (n) => Math.round(n / 10) * 10;
+export const daysBetween = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000);
+export const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
