@@ -1,0 +1,478 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
+import '../../shared/theme.dart';
+import '../../shared/widgets/atoms.dart';
+import '../../shared/lib/storage.dart';
+import '../../app/app_state.dart';
+import '../plan/plan_generator.dart';
+import 'profiles_page.dart';
+
+/// Full-page Settings, replacing the old modal sheet. A private nested
+/// [Navigator] gives each group (Personal, Goals, Macros, Diet, Appearance,
+/// Data) its own drill-down page while sharing one `f` (draft settings) map
+/// and one save/recalculate flow, so "back" within Settings doesn't have to
+/// leave the whole screen.
+class SettingsScreen extends StatefulWidget {
+  final AppState app;
+  final AppController controller;
+  const SettingsScreen({super.key, required this.app, required this.controller});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  final _navKey = GlobalKey<NavigatorState>();
+  late Map<String, dynamic> f;
+
+  @override
+  void initState() {
+    super.initState();
+    f = Map<String, dynamic>.from(widget.app.data.settings);
+    f['calorieBuffer'] ??= 0;
+    f['themeMode'] ??= 'dark';
+    final plan = widget.app.data.plan;
+    f['proteinGoal'] ??= plan?['proteinGoal'] ?? 0;
+    f['carbGoal'] ??= plan?['carbGoal'] ?? 0;
+    f['fatGoal'] ??= plan?['fatGoal'] ?? 0;
+    f['fiberGoal'] ??= plan?['fiberGoal'] ?? 0;
+  }
+
+  void set(String key, dynamic value) => setState(() => f[key] = value);
+
+  Plan _generate() {
+    final currentWeight = double.tryParse('${f['currentWeight'] ?? ''}') ?? 0;
+    final targetWeight = double.tryParse('${f['targetWeight'] ?? ''}') ?? currentWeight;
+    final height = double.tryParse('${f['height'] ?? ''}') ?? 0;
+    final age = double.tryParse('${f['age'] ?? ''}') ?? 0;
+    return generatePlan(
+      currentWeight: currentWeight,
+      targetWeight: targetWeight,
+      height: height,
+      age: age,
+      sex: f['sex'] ?? 'male',
+      activity: f['activity'] ?? 'moderate',
+      goalType: f['goalType'] ?? 'fatLoss',
+      dietPref: f['dietPref'] ?? 'veg',
+      targetDate: f['targetDate'] ?? '',
+      calorieBuffer: (f['calorieBuffer'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  void recalculateMacros() {
+    final plan = _generate();
+    setState(() {
+      f['proteinGoal'] = plan.proteinGoal;
+      f['carbGoal'] = plan.carbGoal;
+      f['fatGoal'] = plan.fatGoal;
+      f['fiberGoal'] = plan.fiberGoal;
+    });
+  }
+
+  void save() {
+    final currentWeight = double.tryParse('${f['currentWeight'] ?? ''}') ?? 0;
+    final targetWeight = double.tryParse('${f['targetWeight'] ?? ''}') ?? currentWeight;
+    final height = double.tryParse('${f['height'] ?? ''}') ?? 0;
+    final age = double.tryParse('${f['age'] ?? ''}') ?? 0;
+    final profile = {
+      ...f,
+      'currentWeight': currentWeight,
+      'targetWeight': targetWeight,
+      'height': height,
+      'age': age,
+    };
+    final plan = _generate();
+    profile['calorieGoal'] = plan.calorieGoal;
+    profile['stepGoal'] = plan.stepGoal;
+    profile['proteinGoal'] = f['proteinGoal'];
+    profile['carbGoal'] = f['carbGoal'];
+    profile['fatGoal'] = f['fatGoal'];
+    profile['fiberGoal'] = f['fiberGoal'];
+    widget.controller.update('settings', (_) => profile);
+    widget.controller.update('plan', (_) => plan.toJson());
+    _navKey.currentState!.popUntil((r) => r.isFirst);
+  }
+
+  void setThemeMode(String mode) {
+    set('themeMode', mode);
+    AppTheme.set(mode == 'light' ? Brightness.light : Brightness.dark);
+    // Persisted immediately (unlike the other groups) since there's no
+    // natural "Save" action tied to appearance and it should stick right away.
+    widget.controller.update('settings', (prev) {
+      final s = Map<String, dynamic>.from(prev ?? {});
+      s['themeMode'] = mode;
+      return s;
+    });
+  }
+
+  Future<void> exportDb() async {
+    if (kIsWeb) {
+      // No real sqlite file exists in the browser — export the current
+      // profile's data (settings/logs/plan/foods) as a JSON download instead.
+      final data = widget.app.data;
+      final payload = {
+        'user': widget.app.user?.name,
+        'settings': data.settings,
+        'weight': data.weight,
+        'history': data.history,
+        'sessions': data.sessions,
+        'diet': data.diet,
+        'water': data.water,
+        'activity': data.activity,
+        'plan': data.plan,
+        'foods': widget.app.foods
+            .map((f) => {'name': f.name, 'kcal': f.kcal, 'protein': f.protein, 'carb': f.carb, 'fat': f.fat, 'fiber': f.fiber})
+            .toList(),
+      };
+      final bytes = Uint8List.fromList(utf8.encode(jsonEncode(payload)));
+      await Share.shareXFiles(
+        [XFile.fromData(bytes, name: 'cuttracker_export.json', mimeType: 'application/json')],
+        text: 'CutTracker data export',
+      );
+      return;
+    }
+    final path = await Backend.instance.dbPath;
+    await Share.shareXFiles([XFile(path)], text: 'CutTracker database export');
+  }
+
+  Widget _field(String label, String key, {bool num = false, bool date = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Eyebrow(label),
+          date
+              ? GestureDetector(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: DateTime.tryParse('${f[key] ?? ''}') ?? DateTime.now(),
+                      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                      lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
+                    );
+                    if (picked != null) set(key, picked.toIso8601String().substring(0, 10));
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(color: T.surface2, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(12)),
+                    child: Text('${f[key] ?? ''}', style: mono(fontSize: 16, color: T.text)),
+                  ),
+                )
+              : TextField(
+                  controller: TextEditingController.fromValue(TextEditingValue(text: '${f[key] ?? ''}', selection: TextSelection.collapsed(offset: '${f[key] ?? ''}'.length))),
+                  onChanged: (v) => set(key, v),
+                  keyboardType: num ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+                  style: TextStyle(color: T.text, fontSize: 16, fontFamily: num ? monoFont : null),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: T.surface2,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: T.line)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: T.line)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: T.accent)),
+                  ),
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _seg(String label, String key, List<MapEntry<String, String>> opts) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Eyebrow(label),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: opts.map((o) {
+              final active = f[key] == o.key;
+              return GestureDetector(
+                onTap: () => set(key, o.key),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: active ? T.hero : T.surface2,
+                    border: Border.all(color: active ? T.hero : T.line),
+                    borderRadius: BorderRadius.circular(T.pill),
+                  ),
+                  child: Text(o.value, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: active ? Colors.white : T.text)),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _segInt(String label, String key, List<int> opts, String Function(int) fmt) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Eyebrow(label),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: opts.map((o) {
+              final active = ((f[key] as num?)?.toInt() ?? 0) == o;
+              return GestureDetector(
+                onTap: () => set(key, o),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: active ? T.hero : T.surface2,
+                    border: Border.all(color: active ? T.hero : T.line),
+                    borderRadius: BorderRadius.circular(T.pill),
+                  ),
+                  child: Text(fmt(o), style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: active ? Colors.white : T.text)),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _macroField(String label, String key) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Eyebrow(label),
+            NumIn(value: '${f[key] ?? 0}', onChange: (v) => set(key, v), suffix: 'g'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _saveButton() => Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: PrimaryButton(
+          onTap: save,
+          child: const Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.auto_awesome, size: 17),
+            SizedBox(width: 8),
+            Text('Save & recalculate plan'),
+          ]),
+        ),
+      );
+
+  Widget _navRow(BuildContext context, {required IconData icon, required String label, required String sub, required String route}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: AppCard(
+        onTap: () => _navKey.currentState!.pushNamed(route),
+        child: Row(children: [
+          IconBubble(icon: Icon(icon, size: 16, color: Colors.white), size: 32, background: T.hero),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: T.text)),
+                Text(sub, style: TextStyle(fontSize: 12, color: T.muted)),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right, size: 18, color: T.faint),
+        ]),
+      ),
+    );
+  }
+
+  Widget _rootList(BuildContext context) {
+    final app = widget.app;
+    return pageScaffold(
+      context: context,
+      title: 'Settings',
+      onBack: () => Navigator.of(context, rootNavigator: true).pop(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _navRow(context, icon: Icons.switch_account, label: 'Profiles', sub: app.user?.name ?? '', route: 'profiles'),
+          _navRow(context, icon: Icons.badge, label: 'Personal details', sub: 'Name, age, height, weight', route: 'personal'),
+          _navRow(context, icon: Icons.flag, label: 'Goals', sub: 'Goal type & activity level', route: 'goals'),
+          _navRow(context, icon: Icons.pie_chart, label: 'Macros & calories', sub: 'Calorie buffer, protein, carbs, fat', route: 'macros'),
+          _navRow(context, icon: Icons.restaurant, label: 'Diet preference', sub: 'Veg, egg, non-veg', route: 'diet'),
+          _navRow(context, icon: Icons.palette, label: 'Appearance', sub: f['themeMode'] == 'light' ? 'Light' : 'Dark', route: 'appearance'),
+          _navRow(context, icon: Icons.storage, label: 'Data & export', sub: 'Export your database', route: 'data'),
+        ],
+      ),
+    );
+  }
+
+  Widget _personalPage(BuildContext context) {
+    return pageScaffold(
+      context: context,
+      title: 'Personal details',
+      onBack: () => Navigator.of(context).pop(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _field('Name', 'name'),
+          Row(children: [
+            Expanded(child: _field('Age', 'age', num: true)),
+            const SizedBox(width: 10),
+            Expanded(child: _field('Height (cm)', 'height', num: true)),
+          ]),
+          Row(children: [
+            Expanded(child: _field('Current (kg)', 'currentWeight', num: true)),
+            const SizedBox(width: 10),
+            Expanded(child: _field('Target (kg)', 'targetWeight', num: true)),
+          ]),
+          _field('Target date', 'targetDate', date: true),
+          _saveButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _goalsPage(BuildContext context) {
+    return pageScaffold(
+      context: context,
+      title: 'Goals',
+      onBack: () => Navigator.of(context).pop(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _seg('Goal', 'goalType', const [MapEntry('fatLoss', 'Fat loss'), MapEntry('weightGain', 'Muscle gain'), MapEntry('maintain', 'Maintain')]),
+          _seg('Activity', 'activity', const [
+            MapEntry('sedentary', 'Sedentary'),
+            MapEntry('light', 'Light'),
+            MapEntry('moderate', 'Moderate'),
+            MapEntry('active', 'Active'),
+            MapEntry('veryActive', 'Very active'),
+          ]),
+          _saveButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _macrosPage(BuildContext context) {
+    return pageScaffold(
+      context: context,
+      title: 'Macros & calories',
+      onBack: () => Navigator.of(context).pop(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _segInt('Calorie buffer', 'calorieBuffer', calorieBufferOptions, (v) => '+$v'),
+          Row(children: [
+            _macroField('Protein', 'proteinGoal'),
+            const SizedBox(width: 10),
+            _macroField('Carbs', 'carbGoal'),
+          ]),
+          Row(children: [
+            _macroField('Fat', 'fatGoal'),
+            const SizedBox(width: 10),
+            _macroField('Fiber', 'fiberGoal'),
+          ]),
+          GestureDetector(
+            onTap: recalculateMacros,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.refresh, size: 14, color: T.accent),
+                const SizedBox(width: 6),
+                Text('Recalculate from plan', style: TextStyle(fontSize: 12, color: T.accent, fontWeight: FontWeight.w600)),
+              ]),
+            ),
+          ),
+          _saveButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _dietPage(BuildContext context) {
+    return pageScaffold(
+      context: context,
+      title: 'Diet preference',
+      onBack: () => Navigator.of(context).pop(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _seg('Diet', 'dietPref', const [MapEntry('veg', 'Veg'), MapEntry('egg', 'Egg'), MapEntry('nonveg', 'Non-veg')]),
+          _saveButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _appearancePage(BuildContext context) {
+    return pageScaffold(
+      context: context,
+      title: 'Appearance',
+      onBack: () => Navigator.of(context).pop(),
+      child: StatefulBuilder(
+        builder: (context, setLocal) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Eyebrow('Theme'),
+            PillTabs(
+              options: const [MapEntry('dark', 'Dark'), MapEntry('light', 'Light')],
+              value: f['themeMode'] ?? 'dark',
+              onChange: (v) => setLocal(() => setThemeMode(v)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dataPage(BuildContext context) {
+    return pageScaffold(
+      context: context,
+      title: 'Data & export',
+      onBack: () => Navigator.of(context).pop(),
+      child: Center(
+        child: Column(children: [
+          Text(kIsWeb ? 'storage: browser' : 'storage: sqlite', style: mono(fontSize: 11, color: T.faint)),
+          GestureDetector(
+            onTap: exportDb,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(kIsWeb ? 'Export data (.json)' : 'Export database (.sqlite)', style: TextStyle(fontSize: 12, color: T.accent)),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Navigator(
+      key: _navKey,
+      onGenerateRoute: (routeSettings) {
+        final builder = switch (routeSettings.name) {
+          'personal' => _personalPage,
+          'goals' => _goalsPage,
+          'macros' => _macrosPage,
+          'diet' => _dietPage,
+          'appearance' => _appearancePage,
+          'data' => _dataPage,
+          'profiles' => (ctx) => ProfilesPage(app: widget.app, controller: widget.controller),
+          _ => _rootList,
+        };
+        return MaterialPageRoute(settings: routeSettings, builder: builder);
+      },
+    );
+  }
+}
