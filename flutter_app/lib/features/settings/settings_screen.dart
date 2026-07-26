@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../shared/theme.dart';
 import '../../shared/widgets/atoms.dart';
+import '../../shared/widgets/pressable_scale.dart';
 import '../../shared/lib/storage.dart';
 import '../../app/app_state.dart';
 import '../plan/plan_generator.dart';
@@ -27,6 +29,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _navKey = GlobalKey<NavigatorState>();
   late Map<String, dynamic> f;
+  bool _exporting = false;
+  bool _importing = false;
 
   @override
   void initState() {
@@ -108,34 +112,109 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
+  static const _exportKeys = ['settings', 'weight', 'history', 'sessions', 'diet', 'water', 'activity', 'plan'];
+
   Future<void> exportDb() async {
-    if (kIsWeb) {
-      // No real sqlite file exists in the browser — export the current
-      // profile's data (settings/logs/plan/foods) as a JSON download instead.
-      final data = widget.app.data;
-      final payload = {
-        'user': widget.app.user?.name,
-        'settings': data.settings,
-        'weight': data.weight,
-        'history': data.history,
-        'sessions': data.sessions,
-        'diet': data.diet,
-        'water': data.water,
-        'activity': data.activity,
-        'plan': data.plan,
-        'foods': widget.app.foods
-            .map((f) => {'name': f.name, 'kcal': f.kcal, 'protein': f.protein, 'carb': f.carb, 'fat': f.fat, 'fiber': f.fiber})
-            .toList(),
-      };
-      final bytes = Uint8List.fromList(utf8.encode(jsonEncode(payload)));
-      await Share.shareXFiles(
-        [XFile.fromData(bytes, name: 'cuttracker_export.json', mimeType: 'application/json')],
-        text: 'CutTracker data export',
-      );
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      if (kIsWeb) {
+        // No real sqlite file exists in the browser — export the current
+        // profile's data (settings/logs/plan/foods) as a JSON download instead.
+        final data = widget.app.data;
+        final payload = {
+          'user': widget.app.user?.name,
+          'settings': data.settings,
+          'weight': data.weight,
+          'history': data.history,
+          'sessions': data.sessions,
+          'diet': data.diet,
+          'water': data.water,
+          'activity': data.activity,
+          'plan': data.plan,
+          'foods': widget.app.foods
+              .map((f) => {'name': f.name, 'kcal': f.kcal, 'protein': f.protein, 'carb': f.carb, 'fat': f.fat, 'fiber': f.fiber})
+              .toList(),
+        };
+        final bytes = Uint8List.fromList(utf8.encode(jsonEncode(payload)));
+        await Share.shareXFiles(
+          [XFile.fromData(bytes, name: 'cuttracker_export.json', mimeType: 'application/json')],
+          text: 'CutTracker data export',
+        );
+      } else {
+        final path = await Backend.instance.dbPath;
+        await Share.shareXFiles([XFile(path)], text: 'CutTracker database export');
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> importDb() async {
+    if (_importing) return;
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+      withData: true,
+    );
+    final bytes = result?.files.single.bytes;
+    if (bytes == null) return;
+
+    Map<String, dynamic> payload;
+    try {
+      payload = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+    } catch (_) {
+      _toast('That file isn\'t a valid CutTracker export.');
       return;
     }
-    final path = await Backend.instance.dbPath;
-    await Share.shareXFiles([XFile(path)], text: 'CutTracker database export');
+
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: T.surface,
+        title: Text('Replace current data?', style: TextStyle(color: T.text)),
+        content: Text(
+          'Importing will overwrite this profile\'s settings, logs, and plan with the contents of the file. This can\'t be undone.',
+          style: TextStyle(color: T.muted),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text('Cancel', style: TextStyle(color: T.muted))),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text('Import', style: TextStyle(color: T.accent))),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _importing = true);
+    try {
+      for (final key in _exportKeys) {
+        if (payload[key] != null) await widget.controller.update(key, (_) => payload[key]);
+      }
+      final foods = payload['foods'];
+      if (foods is List) {
+        for (final food in foods) {
+          final row = Map<String, dynamic>.from(food as Map);
+          await widget.controller.addFood(
+            row['name'] as String,
+            (row['kcal'] as num).toDouble(),
+            (row['protein'] as num).toDouble(),
+            (row['carb'] as num?)?.toDouble() ?? 0,
+            (row['fat'] as num?)?.toDouble() ?? 0,
+            (row['fiber'] as num?)?.toDouble() ?? 0,
+          );
+        }
+      }
+      if (mounted) setState(() => f = Map<String, dynamic>.from(widget.app.data.settings));
+      _toast('Data imported.');
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
   }
 
   Widget _field(String label, String key, {bool num = false, bool date = false}) {
@@ -436,22 +515,112 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _dataActionCard(
+    BuildContext context, {
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBg,
+    required String title,
+    required String description,
+    required String buttonLabel,
+    required IconData buttonIcon,
+    required bool loading,
+    required VoidCallback? onTap,
+    bool filled = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: AppCard(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            IconBubble(icon: Icon(icon, size: 22, color: iconColor), size: 52, background: iconBg),
+            const SizedBox(height: 14),
+            Text(title, style: Type.h3),
+            const SizedBox(height: 6),
+            Text(description, style: Type.caption),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: filled
+                  ? PrimaryButton(
+                      onTap: onTap,
+                      opacity: loading ? 0.6 : 1,
+                      child: _dataActionButtonContent(buttonIcon, buttonLabel, loading, Colors.white),
+                    )
+                  : PressableScale(
+                      onTap: loading ? null : onTap,
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(T.rM),
+                          border: Border.all(color: T.line),
+                        ),
+                        alignment: Alignment.center,
+                        child: _dataActionButtonContent(buttonIcon, buttonLabel, loading, T.text),
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dataActionButtonContent(IconData icon, String label, bool loading, Color color) {
+    if (loading) {
+      return SizedBox(height: 17, width: 17, child: CircularProgressIndicator(strokeWidth: 2, color: color));
+    }
+    return Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 16, color: color),
+      const SizedBox(width: 8),
+      Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 14)),
+    ]);
+  }
+
   Widget _dataPage(BuildContext context) {
     return pageScaffold(
       context: context,
       title: 'Data & export',
       onBack: () => Navigator.of(context).pop(),
-      child: Center(
-        child: Column(children: [
-          Text(kIsWeb ? 'storage: browser' : 'storage: sqlite', style: mono(fontSize: 11, color: T.faint)),
-          GestureDetector(
-            onTap: exportDb,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(kIsWeb ? 'Export data (.json)' : 'Export database (.sqlite)', style: TextStyle(fontSize: 12, color: T.accent)),
-            ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(kIsWeb ? 'storage: browser' : 'storage: sqlite', style: mono(fontSize: 11, color: T.faint)),
           ),
-        ]),
+          _dataActionCard(
+            context,
+            icon: Icons.upload_rounded,
+            iconColor: Colors.white,
+            iconBg: T.hero,
+            title: kIsWeb ? 'Export data' : 'Export database',
+            description: kIsWeb
+                ? 'Save a copy of your profile, weight, workouts, diet log, and foods as a .json file. Keep it somewhere safe, or use it to move your data to another device.'
+                : 'Share a copy of your local .sqlite database file. Keep it somewhere safe, or use it to move your data to another device.',
+            buttonLabel: kIsWeb ? 'Export as JSON' : 'Export database',
+            buttonIcon: Icons.ios_share,
+            loading: _exporting,
+            onTap: exportDb,
+            filled: true,
+          ),
+          if (kIsWeb)
+            _dataActionCard(
+              context,
+              icon: Icons.download_rounded,
+              iconColor: T.hero,
+              iconBg: T.accentDim,
+              title: 'Import data',
+              description:
+                  'Restore a previously exported .json file. This replaces this profile\'s current settings, logs, and plan — export first if you want to keep a backup.',
+              buttonLabel: 'Choose JSON file',
+              buttonIcon: Icons.folder_open,
+              loading: _importing,
+              onTap: importDb,
+            ),
+        ],
       ),
     );
   }

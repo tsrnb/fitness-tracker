@@ -686,26 +686,36 @@ class NumIn extends StatelessWidget {
 }
 
 Future<R?> showAppSheet<R>(BuildContext context, Widget child) {
-  // Leave the status bar / notch clear (and a little breathing room below
-  // it) no matter how tall the sheet's content is, instead of letting a
-  // long sheet (e.g. Settings) grow all the way to the top of the screen.
-  final topInset = MediaQuery.of(context).padding.top;
   return showModalBottomSheet<R>(
     context: context,
     backgroundColor: T.bg,
     isScrollControlled: true,
-    constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height - topInset - 24),
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(T.rXL))),
-    builder: (ctx) => Padding(
-      key: const ValueKey('app-sheet-content'),
-      padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-      child: SafeArea(
-        top: false,
+    builder: (ctx) {
+      // Read live from `ctx` (the sheet's own context) instead of a value
+      // captured once from the caller's context before the sheet opened.
+      // On Flutter web + iOS Safari, opening the on-screen keyboard shrinks
+      // the browser viewport itself (MediaQuery.size) rather than growing
+      // viewInsets.bottom — a stale maxHeight computed before that resize
+      // no longer fits the actual (now shorter) viewport, so the sheet
+      // overflows upward past the top of the screen with its buttons
+      // pushed out of reach. Reading it here rebuilds it on every resize.
+      final mq = MediaQuery.of(ctx);
+      final maxHeight = mq.size.height - mq.padding.top - 24;
+      return ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
-          child: SingleChildScrollView(child: child),
+          key: const ValueKey('app-sheet-content'),
+          padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
+              child: SingleChildScrollView(child: child),
+            ),
+          ),
         ),
-      ),
-    ),
+      );
+    },
   );
 }

@@ -52,8 +52,12 @@ class _RestDayScreenState extends State<RestDayScreen> with SingleTickerProvider
           gradient: RadialGradient(
             center: const Alignment(0, -0.3),
             radius: 1.2,
-            colors: [T.hero.withValues(alpha: 0.16), T.lav.withValues(alpha: 0.10), T.bg],
-            stops: const [0.0, 0.45, 1.0],
+            // A single hue fading straight to the background. Mixing in
+            // T.lav (a cool, desaturated lavender) as a middle stop read as
+            // a flat gray haze once blended over the near-black dark
+            // background instead of a deliberate glow.
+            colors: [T.hero.withValues(alpha: 0.15), T.bg],
+            stops: const [0.0, 1.0],
           ),
         ),
         child: SafeArea(
