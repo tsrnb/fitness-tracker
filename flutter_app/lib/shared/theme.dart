@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'lib/web_bg.dart';
 
 /// Holds the current light/dark mode as a global, observable flag. `T.*`
 /// colors below read this at build time; toggling it and rebuilding the
@@ -7,7 +8,14 @@ import 'package:google_fonts/google_fonts.dart';
 class AppTheme {
   static final mode = ValueNotifier<Brightness>(Brightness.dark);
   static bool get isDark => mode.value == Brightness.dark;
-  static void set(Brightness b) => mode.value = b;
+
+  static void set(Brightness b) {
+    mode.value = b;
+    // On web, the actual HTML page background (outside/behind the Flutter
+    // canvas) is a separate thing from anything Flutter itself paints —
+    // keep it in sync so it's never a mismatched or default-white sliver.
+    setWebPageBackground(b == Brightness.dark ? '#0C0C0D' : '#FAFAF8');
+  }
 }
 
 /// Design tokens ported 1:1 from the React app's shared/theme.js, now
