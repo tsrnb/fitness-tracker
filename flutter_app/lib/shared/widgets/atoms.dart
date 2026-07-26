@@ -7,6 +7,51 @@ const _fast = Duration(milliseconds: 180);
 const _med = Duration(milliseconds: 260);
 const _curve = Curves.easeOutCubic;
 
+/// Fades + slides one list item in, delayed by [index] steps — wrap each
+/// item of a list with this (passing its position) for a lightweight
+/// staggered-entrance feel with no external animation package. Give it a
+/// `key` that changes when the list's order/contents change (e.g. a filter
+/// switch) if the entrance should replay; an unkeyed/stably-keyed instance
+/// only plays once, on first mount.
+class StaggerIn extends StatefulWidget {
+  final int index;
+  final Widget child;
+  const StaggerIn({super.key, required this.index, required this.child});
+
+  @override
+  State<StaggerIn> createState() => _StaggerInState();
+}
+
+class _StaggerInState extends State<StaggerIn> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: _med);
+    _fade = CurvedAnimation(parent: _controller, curve: _curve);
+    _slide = Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(_fade);
+    // Capped so long lists don't take forever to finish revealing.
+    final delay = Duration(milliseconds: 32 * widget.index.clamp(0, 12));
+    Future.delayed(delay, () {
+      if (mounted) _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(opacity: _fade, child: SlideTransition(position: _slide, child: widget.child));
+  }
+}
+
 class Surface extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -103,6 +148,18 @@ class PaperCard extends StatelessWidget {
   }
 }
 
+/// A stable identity for the common icon-bearing widgets, so [IconBubble]'s
+/// cross-fade only fires when the icon *content* actually changes, not
+/// merely because the caller rebuilt a new (non-const) `Icon(...)` instance
+/// with the same glyph — the default `Object.hashCode` used before this is
+/// identity-based, so it changed on every rebuild and re-triggered the
+/// fade/scale transition on any unrelated state change, reading as a flicker.
+Object _iconIdentity(Widget icon) {
+  if (icon is Icon) return Object.hash(icon.icon?.codePoint, icon.color, icon.size);
+  if (icon is ImageIcon) return Object.hash(icon.image, icon.color, icon.size);
+  return icon.key ?? icon.runtimeType;
+}
+
 class IconBubble extends StatelessWidget {
   final Widget icon;
   final double size;
@@ -123,7 +180,7 @@ class IconBubble extends StatelessWidget {
       child: AnimatedSwitcher(
         duration: _fast,
         transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: FadeTransition(opacity: anim, child: child)),
-        child: KeyedSubtree(key: ValueKey(icon.hashCode), child: icon),
+        child: KeyedSubtree(key: ValueKey(_iconIdentity(icon)), child: icon),
       ),
     );
     if (onTap == null) return content;

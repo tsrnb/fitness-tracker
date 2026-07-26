@@ -14,25 +14,29 @@ class LogActivitySheet extends StatefulWidget {
 }
 
 class _LogActivitySheetState extends State<LogActivitySheet> {
-  late String steps;
-  late String kcal;
-  late String min;
+  // These fields are activity to ADD, not today's running total — pre-filling
+  // them with the existing total meant typing a smaller "extra walk" number
+  // and saving silently overwrote (shrank) whatever was already logged today
+  // instead of adding to it, the way food log entries do.
+  String steps = '';
+  String kcal = '';
+  String min = '';
 
-  @override
-  void initState() {
-    super.initState();
-    final today = todayStr();
-    final cur = Map<String, dynamic>.from(widget.app.data.activity[today] ?? {'steps': 0, 'kcal': 0, 'min': 0});
-    steps = '${cur['steps'] ?? 0}';
-    kcal = '${cur['kcal'] ?? 0}';
-    min = '${cur['min'] ?? 0}';
-  }
+  Map<String, dynamic> get _todayTotals => Map<String, dynamic>.from(widget.app.data.activity[todayStr()] ?? {'steps': 0, 'kcal': 0, 'min': 0});
 
   void save() {
     final today = todayStr();
+    final addSteps = int.tryParse(steps) ?? 0;
+    final addKcal = int.tryParse(kcal) ?? 0;
+    final addMin = int.tryParse(min) ?? 0;
     widget.controller.update('activity', (prev) {
       final a = Map<String, dynamic>.from(prev ?? {});
-      a[today] = {'steps': int.tryParse(steps) ?? 0, 'kcal': int.tryParse(kcal) ?? 0, 'min': int.tryParse(min) ?? 0};
+      final cur = Map<String, dynamic>.from(a[today] ?? {'steps': 0, 'kcal': 0, 'min': 0});
+      a[today] = {
+        'steps': ((cur['steps'] as num?) ?? 0) + addSteps,
+        'kcal': ((cur['kcal'] as num?) ?? 0) + addKcal,
+        'min': ((cur['min'] as num?) ?? 0) + addMin,
+      };
       return a;
     });
     Navigator.of(context).pop();
@@ -50,6 +54,7 @@ class _LogActivitySheetState extends State<LogActivitySheet> {
   @override
   Widget build(BuildContext context) {
     final today = todayStr();
+    final totals = _todayTotals;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -64,9 +69,15 @@ class _LogActivitySheetState extends State<LogActivitySheet> {
           ],
         ),
         Padding(padding: EdgeInsets.symmetric(vertical: 10), child: Text(fmtDay(today), style: TextStyle(fontSize: 13, color: T.muted))),
-        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Text(
+            'Today so far: ${totals['steps']} steps · ${totals['kcal']} kcal · ${totals['min']} min — enter what you want to add.',
+            style: TextStyle(fontSize: 12.5, color: T.muted),
+          ),
+        ),
         const Eyebrow('Steps walked'),
-        Padding(padding: const EdgeInsets.only(bottom: 10), child: NumIn(value: steps, onChange: (v) => setState(() => steps = v), ph: '9000', suffix: 'steps')),
+        Padding(padding: const EdgeInsets.only(bottom: 10), child: NumIn(value: steps, onChange: (v) => setState(() => steps = v), ph: '+1000', suffix: 'steps')),
         Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: Wrap(spacing: 8, runSpacing: 8, children: [
@@ -77,10 +88,10 @@ class _LogActivitySheetState extends State<LogActivitySheet> {
           ]),
         ),
         const Eyebrow('Cardio calories'),
-        Padding(padding: const EdgeInsets.only(bottom: 14), child: NumIn(value: kcal, onChange: (v) => setState(() => kcal = v), ph: '180', suffix: 'kcal')),
+        Padding(padding: const EdgeInsets.only(bottom: 14), child: NumIn(value: kcal, onChange: (v) => setState(() => kcal = v), ph: '+180', suffix: 'kcal')),
         const Eyebrow('Cardio minutes'),
-        Padding(padding: const EdgeInsets.only(bottom: 18), child: NumIn(value: min, onChange: (v) => setState(() => min = v), ph: '20', suffix: 'min')),
-        PrimaryButton(onTap: save, child: const Text('Save')),
+        Padding(padding: const EdgeInsets.only(bottom: 18), child: NumIn(value: min, onChange: (v) => setState(() => min = v), ph: '+20', suffix: 'min')),
+        PrimaryButton(onTap: save, child: const Text('Add to today')),
       ],
     );
   }

@@ -7,10 +7,10 @@ import 'package:share_plus/share_plus.dart';
 import '../../shared/theme.dart';
 import '../../shared/widgets/atoms.dart';
 import '../../shared/widgets/pressable_scale.dart';
-import '../../shared/lib/storage.dart';
 import '../../app/app_state.dart';
 import '../plan/plan_generator.dart';
 import '../training/plan_chooser_screen.dart';
+import '../training/splits.dart';
 import 'profiles_page.dart';
 
 /// Full-page Settings, replacing the old modal sheet. A private nested
@@ -119,33 +119,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_exporting) return;
     setState(() => _exporting = true);
     try {
-      if (kIsWeb) {
-        // No real sqlite file exists in the browser — export the current
-        // profile's data (settings/logs/plan/foods) as a JSON download instead.
-        final data = widget.app.data;
-        final payload = {
-          'user': widget.app.user?.name,
-          'settings': data.settings,
-          'weight': data.weight,
-          'history': data.history,
-          'sessions': data.sessions,
-          'diet': data.diet,
-          'water': data.water,
-          'activity': data.activity,
-          'plan': data.plan,
-          'foods': widget.app.foods
-              .map((f) => {'name': f.name, 'kcal': f.kcal, 'protein': f.protein, 'carb': f.carb, 'fat': f.fat, 'fiber': f.fiber})
-              .toList(),
-        };
-        final bytes = Uint8List.fromList(utf8.encode(jsonEncode(payload)));
-        await Share.shareXFiles(
-          [XFile.fromData(bytes, name: 'cuttracker_export.json', mimeType: 'application/json')],
-          text: 'CutTracker data export',
-        );
-      } else {
-        final path = await Backend.instance.dbPath;
-        await Share.shareXFiles([XFile(path)], text: 'CutTracker database export');
-      }
+      // Always the JSON payload (not the raw native .sqlite file) so what
+      // Export produces is exactly what Import (JSON-only, every platform)
+      // can read back — a native-only raw-db export used to be paired with
+      // a JSON-only import, so round-tripping a native export silently
+      // failed to parse.
+      final data = widget.app.data;
+      final payload = {
+        'user': widget.app.user?.name,
+        'settings': data.settings,
+        'weight': data.weight,
+        'history': data.history,
+        'sessions': data.sessions,
+        'diet': data.diet,
+        'water': data.water,
+        'activity': data.activity,
+        'plan': data.plan,
+        'foods': widget.app.foods
+            .map((f) => {'name': f.name, 'kcal': f.kcal, 'protein': f.protein, 'carb': f.carb, 'fat': f.fat, 'fiber': f.fiber})
+            .toList(),
+      };
+      final bytes = Uint8List.fromList(utf8.encode(jsonEncode(payload)));
+      await Share.shareXFiles(
+        [XFile.fromData(bytes, name: 'cuttracker_export.json', mimeType: 'application/json')],
+        text: 'CutTracker data export',
+      );
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -357,7 +355,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: AppCard(
         onTap: () => _navKey.currentState!.pushNamed(route),
         child: Row(children: [
-          IconBubble(icon: Icon(icon, size: 16, color: Colors.white), size: 32, background: T.hero),
+          IconBubble(icon: Icon(icon, size: 16, color: T.muted), size: 32, background: T.surface2),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -375,8 +373,177 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _rootList(BuildContext context) {
+  /// A settings row with a trailing status pill instead of a plain chevron —
+  /// shows the current value (goal, split, macros...) right on the row.
+  Widget _badgeRow(BuildContext context, {
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBg,
+    required String label,
+    required String sub,
+    required String badge,
+    required Color badgeBg,
+    required Color badgeColor,
+    required String route,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: AppCard(
+        onTap: () => _navKey.currentState!.pushNamed(route),
+        child: Row(children: [
+          IconBubble(icon: Icon(icon, size: 16, color: iconColor), size: 32, background: iconBg),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: T.text)),
+                Text(sub, style: TextStyle(fontSize: 12, color: T.muted)),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(T.pill)),
+            child: Text(badge, style: mono(fontSize: 12, fontWeight: FontWeight.w700, color: badgeColor)),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String text) => Eyebrow(text);
+
+  String _goalLabel(String key) => goalOptions.firstWhere((o) => o.key == key, orElse: () => const MapEntry('', '')).value;
+
+  /// "Fat loss · 8.0kg to go" — nothing to chase for `maintain`, so that case
+  /// just shows the goal name.
+  String _heroSubtitle() {
+    final goal = (f['goalType'] as String?) ?? 'fatLoss';
+    final label = _goalLabel(goal);
+    if (goal == 'maintain') return label;
+    final cur = double.tryParse('${f['currentWeight'] ?? ''}') ?? 0;
+    final tgt = double.tryParse('${f['targetWeight'] ?? ''}') ?? cur;
+    final diff = (cur - tgt).abs();
+    if (diff <= 0) return label;
+    return '$label · ${diff.toStringAsFixed(1)}kg to go';
+  }
+
+  static const _heroGradientStart = Color(0xFFA64A2C);
+  static const _heroGradientEnd = Color(0xFF8F3F26);
+  static const _heroInk = Color(0xFFF7EAE1);
+
+  Widget _heroCard(BuildContext context) {
     final app = widget.app;
+    final name = app.user?.name ?? '';
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final split = activeSplit(f);
+    final calorieGoal = (f['calorieGoal'] as num?)?.round() ?? 0;
+    final proteinGoal = (f['proteinGoal'] as num?)?.round() ?? 0;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: PressableScale(
+        onTap: () => _navKey.currentState!.pushNamed('profiles'),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [_heroGradientStart, _heroGradientEnd]),
+            borderRadius: BorderRadius.circular(T.rXL),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.16), border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5)),
+                    child: Text(initial, style: const TextStyle(color: _heroInk, fontWeight: FontWeight.w800, fontSize: 19)),
+                  ),
+                  const SizedBox(width: 13),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name, style: const TextStyle(color: _heroInk, fontWeight: FontWeight.w800, fontSize: 18)),
+                        Padding(padding: const EdgeInsets.only(top: 2), child: Text(_heroSubtitle(), style: TextStyle(color: _heroInk.withValues(alpha: 0.85), fontSize: 13))),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(T.pill)),
+                    child: Text('Edit', style: mono(fontSize: 12, fontWeight: FontWeight.w700, color: _heroInk)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(children: [
+                Expanded(child: _heroStat('$calorieGoal', 'kcal/day')),
+                const SizedBox(width: 7),
+                Expanded(child: _heroStat('${proteinGoal}g', 'protein')),
+                const SizedBox(width: 7),
+                Expanded(child: _heroStat('${split.daysPerWeek}d', 'wk split')),
+              ]),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _heroStat(String value, String label) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(T.rM)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(value, style: mono(fontSize: 17, fontWeight: FontWeight.w700, color: _heroInk)),
+            Padding(padding: const EdgeInsets.only(top: 2), child: Text(label, style: TextStyle(fontSize: 12.5, color: _heroInk.withValues(alpha: 0.8)))),
+          ],
+        ),
+      );
+
+  Widget _rootList(BuildContext context) {
+    final split = activeSplit(f);
+    final rows = <Widget>[
+      _heroCard(context),
+      _sectionLabel('Health & training'),
+      _badgeRow(context,
+          icon: Icons.flag, iconColor: T.hero, iconBg: T.accentDim,
+          label: 'Goals', sub: 'Goal type & activity level',
+          badge: _goalLabel((f['goalType'] as String?) ?? 'fatLoss'), badgeBg: T.accentDim, badgeColor: T.hero,
+          route: 'goals'),
+      _badgeRow(context,
+          icon: Icons.fitness_center, iconColor: T.lav, iconBg: T.lavSoft,
+          label: 'Training plan', sub: 'Ranked by effectiveness',
+          badge: split.name, badgeBg: T.lavSoft, badgeColor: T.lav,
+          route: 'trainingPlan'),
+      _badgeRow(context,
+          icon: Icons.pie_chart, iconColor: T.blue, iconBg: T.blue.withValues(alpha: 0.16),
+          label: 'Macros & calories', sub: 'Buffer, protein, carbs, fat',
+          badge: '${(f['calorieGoal'] as num?)?.round() ?? 0} kcal', badgeBg: T.blue.withValues(alpha: 0.16), badgeColor: T.blue,
+          route: 'macros'),
+      _sectionLabel('Preferences'),
+      _badgeRow(context,
+          icon: Icons.restaurant, iconColor: T.success, iconBg: T.success.withValues(alpha: 0.16),
+          label: 'Diet preference', sub: 'Veg, egg, non-veg',
+          badge: switch (f['dietPref']) { 'egg' => 'Egg', 'nonveg' => 'Non-veg', _ => 'Veg' },
+          badgeBg: T.success.withValues(alpha: 0.16), badgeColor: T.success,
+          route: 'diet'),
+      _badgeRow(context,
+          icon: Icons.palette, iconColor: T.muted, iconBg: T.surface2,
+          label: 'Appearance', sub: 'Theme',
+          badge: f['themeMode'] == 'light' ? 'Light' : 'Dark', badgeBg: T.surface2, badgeColor: T.muted,
+          route: 'appearance'),
+      _sectionLabel('You & data'),
+      _navRow(context, icon: Icons.badge, label: 'Personal details', sub: 'Name, age, height, weight', route: 'personal'),
+      _navRow(context, icon: Icons.storage, label: 'Data & export', sub: 'Export your database', route: 'data'),
+    ];
     return pageScaffold(
       context: context,
       title: 'Settings',
@@ -384,14 +551,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _navRow(context, icon: Icons.switch_account, label: 'Profiles', sub: app.user?.name ?? '', route: 'profiles'),
-          _navRow(context, icon: Icons.badge, label: 'Personal details', sub: 'Name, age, height, weight', route: 'personal'),
-          _navRow(context, icon: Icons.flag, label: 'Goals', sub: 'Goal type & activity level', route: 'goals'),
-          _navRow(context, icon: Icons.fitness_center, label: 'Training plan', sub: 'Explore splits ranked by effectiveness', route: 'trainingPlan'),
-          _navRow(context, icon: Icons.pie_chart, label: 'Macros & calories', sub: 'Calorie buffer, protein, carbs, fat', route: 'macros'),
-          _navRow(context, icon: Icons.restaurant, label: 'Diet preference', sub: 'Veg, egg, non-veg', route: 'diet'),
-          _navRow(context, icon: Icons.palette, label: 'Appearance', sub: f['themeMode'] == 'light' ? 'Light' : 'Dark', route: 'appearance'),
-          _navRow(context, icon: Icons.storage, label: 'Data & export', sub: 'Export your database', route: 'data'),
+          ...List.generate(rows.length, (i) => StaggerIn(index: i, child: rows[i])),
         ],
       ),
     );
@@ -431,7 +591,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _seg('Goal', 'goalType', const [MapEntry('fatLoss', 'Fat loss'), MapEntry('weightGain', 'Muscle gain'), MapEntry('maintain', 'Maintain')]),
+          _seg('Goal', 'goalType', goalOptions),
           _seg('Activity', 'activity', const [
             MapEntry('sedentary', 'Sedentary'),
             MapEntry('light', 'Light'),
@@ -506,10 +666,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Eyebrow('Theme'),
-            PillTabs(
-              options: const [MapEntry('dark', 'Dark'), MapEntry('light', 'Light')],
-              value: f['themeMode'] ?? 'dark',
-              onChange: (v) => setLocal(() => setThemeMode(v)),
+            // Light mode switching is disabled for now — kept visible (not
+            // removed) so it's clear the option exists and isn't just missing.
+            Opacity(
+              opacity: 0.5,
+              child: IgnorePointer(
+                child: PillTabs(
+                  options: const [MapEntry('dark', 'Dark'), MapEntry('light', 'Light')],
+                  value: 'dark',
+                  onChange: (_) {},
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 8),
+              child: Text('Light mode is coming soon.', style: Type.caption),
             ),
           ],
         ),
@@ -519,9 +690,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _dataActionCard(
     BuildContext context, {
-    required IconData icon,
-    required Color iconColor,
-    required Color iconBg,
+    required Widget illustration,
     required String title,
     required String description,
     required String buttonLabel,
@@ -537,7 +706,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            IconBubble(icon: Icon(icon, size: 22, color: iconColor), size: 52, background: iconBg),
+            illustration,
             const SizedBox(height: 14),
             Text(title, style: Type.h3),
             const SizedBox(height: 6),
@@ -595,33 +764,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           _dataActionCard(
             context,
-            icon: Icons.upload_rounded,
-            iconColor: Colors.white,
-            iconBg: T.hero,
-            title: kIsWeb ? 'Export data' : 'Export database',
-            description: kIsWeb
-                ? 'Save a copy of your profile, weight, workouts, diet log, and foods as a .json file. Keep it somewhere safe, or use it to move your data to another device.'
-                : 'Share a copy of your local .sqlite database file. Keep it somewhere safe, or use it to move your data to another device.',
-            buttonLabel: kIsWeb ? 'Export as JSON' : 'Export database',
+            illustration: const _DataIllustration(kind: _DataIllustrationKind.export),
+            title: 'Export data',
+            description: 'Save a copy of your profile, weight, workouts, diet log, and foods as a .json file. Keep it somewhere safe, or use it to move your data to another device.',
+            buttonLabel: 'Export as JSON',
             buttonIcon: Icons.ios_share,
             loading: _exporting,
             onTap: exportDb,
             filled: true,
           ),
-          if (kIsWeb)
-            _dataActionCard(
-              context,
-              icon: Icons.download_rounded,
-              iconColor: T.hero,
-              iconBg: T.accentDim,
-              title: 'Import data',
-              description:
-                  'Restore a previously exported .json file. This replaces this profile\'s current settings, logs, and plan — export first if you want to keep a backup.',
-              buttonLabel: 'Choose JSON file',
-              buttonIcon: Icons.folder_open,
-              loading: _importing,
-              onTap: importDb,
-            ),
+          _dataActionCard(
+            context,
+            illustration: const _DataIllustration(kind: _DataIllustrationKind.import),
+            title: 'Import data',
+            description: 'Restore a previously exported .json file. This replaces this profile\'s current settings, logs, and plan — export first if you want to keep a backup.',
+            buttonLabel: 'Choose JSON file',
+            buttonIcon: Icons.folder_open,
+            loading: _importing,
+            onTap: importDb,
+          ),
         ],
       ),
     );
@@ -645,6 +806,80 @@ class _SettingsScreenState extends State<SettingsScreen> {
         };
         return MaterialPageRoute(settings: routeSettings, builder: builder);
       },
+    );
+  }
+}
+
+enum _DataIllustrationKind { export, import }
+
+/// A small illustrated tray-and-document motif for the export/import cards,
+/// built entirely from layered shapes (no external image asset) so it stays
+/// theme-aware in light/dark automatically, per T.* tokens.
+class _DataIllustration extends StatelessWidget {
+  final _DataIllustrationKind kind;
+  const _DataIllustration({required this.kind});
+
+  @override
+  Widget build(BuildContext context) {
+    final isExport = kind == _DataIllustrationKind.export;
+    final tone = isExport ? T.hero : T.lav;
+    final badgeInk = isExport ? Colors.white : T.lavInk;
+    return SizedBox(
+      width: 72,
+      height: 66,
+      child: Stack(
+        alignment: Alignment.bottomCenter,
+        children: [
+          Positioned(
+            bottom: 4,
+            child: Container(
+              width: 58,
+              height: 30,
+              decoration: BoxDecoration(
+                color: tone.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: tone.withValues(alpha: 0.4)),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            child: Container(
+              width: 38,
+              height: 46,
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 9),
+              decoration: BoxDecoration(
+                color: T.surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: tone, width: 1.5),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: List.generate(3, (i) {
+                  return Container(
+                    margin: EdgeInsets.only(bottom: i < 2 ? 5 : 0),
+                    height: 3,
+                    width: i == 2 ? 14 : double.infinity,
+                    decoration: BoxDecoration(color: tone.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(2)),
+                  );
+                }),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 0,
+            right: 4,
+            child: Container(
+              width: 26,
+              height: 26,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: tone, shape: BoxShape.circle, border: Border.all(color: T.surface, width: 2.5)),
+              child: Icon(isExport ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded, size: 14, color: badgeInk),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

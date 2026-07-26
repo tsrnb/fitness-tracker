@@ -18,11 +18,28 @@ class QuickLogSheet extends StatefulWidget {
 
 class _QuickLogSheetState extends State<QuickLogSheet> {
   final logTextCtrl = TextEditingController();
+  final _textFocus = FocusNode();
   bool showFormat = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // `autofocus: true` here raced the keyboard's appear animation against
+    // the sheet's own slide-up entrance — the two together could briefly
+    // ask for more height than the (still-animating) sheet had, pushing its
+    // content off the top of the screen. Requesting focus only after the
+    // sheet has finished settling avoids the race.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 260), () {
+        if (mounted) _textFocus.requestFocus();
+      });
+    });
+  }
 
   @override
   void dispose() {
     logTextCtrl.dispose();
+    _textFocus.dispose();
     super.dispose();
   }
 
@@ -109,8 +126,8 @@ class _QuickLogSheetState extends State<QuickLogSheet> {
             children: [
               TextField(
                 controller: logTextCtrl,
+                focusNode: _textFocus,
                 onChanged: (_) => setState(() {}),
-                autofocus: true,
                 maxLines: 3,
                 style: mono(fontSize: 13, color: T.text),
                 decoration: _dec('2 Rotis, 240, 6\nDal tadka, 180, 12'),

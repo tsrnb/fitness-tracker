@@ -27,24 +27,29 @@ class _TrainingPlanChooserScreenState extends State<TrainingPlanChooserScreen> {
   late String selectedId;
   String? expandedId;
 
-  static const _goalOptions = [
-    MapEntry('fatLoss', 'Fat loss'),
-    MapEntry('weightGain', 'Muscle growth'),
-    MapEntry('maintain', 'Maintain'),
-  ];
+  /// `widget.app` is a snapshot taken once when this screen was pushed — it
+  /// never refreshes mid-session, only `controller.update` calls do. Without
+  /// a local mirror, a second switch within the same visit to this screen
+  /// re-reads that stale snapshot as "current", so a goal change is only
+  /// ever detected once per visit (e.g. switching fatLoss -> weightGain
+  /// works, but immediately switching back to fatLoss afterward silently no-ops
+  /// because the stale snapshot still says "fatLoss" was already current).
+  late Map<String, dynamic> _settings;
+  late String currentGoal;
 
   @override
   void initState() {
     super.initState();
-    final settings = widget.app.data.settings;
-    goal = (settings['goalType'] as String?) ?? 'fatLoss';
-    if (!_goalOptions.any((o) => o.key == goal)) goal = 'fatLoss';
-    selectedId = activeSplit(settings).id;
+    _settings = Map<String, dynamic>.from(widget.app.data.settings);
+    currentGoal = (_settings['goalType'] as String?) ?? 'fatLoss';
+    if (!goalOptions.any((o) => o.key == currentGoal)) currentGoal = 'fatLoss';
+    goal = currentGoal;
+    selectedId = activeSplit(_settings).id;
   }
 
   List<TrainingSplit> get _ranked => rankedSplits(goal);
 
-  String _goalLabel(String key) => _goalOptions.firstWhere((o) => o.key == key, orElse: () => const MapEntry('', '')).value;
+  String _goalLabel(String key) => goalOptions.firstWhere((o) => o.key == key, orElse: () => const MapEntry('', '')).value;
 
   Future<bool?> _confirmGoalSwitch(String currentGoal, String newGoal) {
     return showDialog<bool>(
@@ -85,8 +90,6 @@ class _TrainingPlanChooserScreenState extends State<TrainingPlanChooserScreen> {
   }
 
   Future<void> _select(TrainingSplit s) async {
-    final settings = widget.app.data.settings;
-    final currentGoal = (settings['goalType'] as String?) ?? 'fatLoss';
     final switchingGoal = goal != currentGoal;
 
     if (switchingGoal) {
@@ -95,9 +98,8 @@ class _TrainingPlanChooserScreenState extends State<TrainingPlanChooserScreen> {
     }
 
     final wasSelected = selectedId == s.id;
-    setState(() => selectedId = s.id);
 
-    final merged = Map<String, dynamic>.from(settings);
+    final merged = Map<String, dynamic>.from(_settings);
     merged['trainingSplitId'] = s.id;
     merged.remove('schedule'); // old day names don't map onto the new split
 
@@ -116,6 +118,12 @@ class _TrainingPlanChooserScreenState extends State<TrainingPlanChooserScreen> {
 
     widget.controller.update('settings', (_) => merged);
     if (planJson != null) widget.controller.update('plan', (_) => planJson);
+
+    setState(() {
+      _settings = merged;
+      selectedId = s.id;
+      if (switchingGoal) currentGoal = goal;
+    });
 
     if (!mounted) return;
 
@@ -163,13 +171,20 @@ class _TrainingPlanChooserScreenState extends State<TrainingPlanChooserScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Every split below can build muscle or lose fat — some just do it more efficiently for a given goal. Scores are computed from each split\'s actual weekly training frequency and volume per muscle group, not a lab measurement — see a split\'s card for how it\'s built.',
+            'Ranked for your goal, most effective first — scored from real weekly volume and frequency, not a lab measurement.',
             style: Type.body.copyWith(color: T.muted),
           ),
           const SizedBox(height: 16),
           const Eyebrow('Optimize for'),
-          PillTabs(options: _goalOptions, value: goal, onChange: (v) => setState(() => goal = v)),
-          ...List.generate(ranked.length, (i) => _splitCard(ranked[i], i)),
+          PillTabs(options: goalOptions, value: goal, onChange: (v) => setState(() => goal = v)),
+          ...List.generate(
+            ranked.length,
+            (i) => StaggerIn(
+              key: ValueKey('$goal-${ranked[i].id}'),
+              index: i,
+              child: _splitCard(ranked[i], i),
+            ),
+          ),
         ],
       ),
     );

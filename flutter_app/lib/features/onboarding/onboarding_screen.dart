@@ -12,6 +12,10 @@ typedef OnboardingComplete = void Function(Map<String, dynamic> profile, Plan pl
 /// fallback if that step is somehow skipped.
 String _topSplitId(String forGoal) => rankedSplits(forGoal).first.id;
 
+/// The one wording for a goal key — [goalOptions] is the shared source of
+/// truth (also used by Settings > Goals and the Training Plan chooser).
+String _goalLabel(String key) => goalOptions.firstWhere((o) => o.key == key, orElse: () => const MapEntry('', '')).value;
+
 class OnboardingScreen extends StatefulWidget {
   final OnboardingComplete onComplete;
   final VoidCallback? onCancel;
@@ -241,9 +245,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           children: [
             _title('Your goal'),
             const SizedBox(height: 16),
-            OptBtn(active: goalType == 'fatLoss', onTap: () => setState(() => goalType = 'fatLoss'), icon: const Icon(Icons.local_fire_department, size: 22), label: 'Lose fat', sub: 'Cut while keeping muscle'),
-            OptBtn(active: goalType == 'weightGain', onTap: () => setState(() => goalType = 'weightGain'), icon: const Icon(Icons.trending_up, size: 22), label: 'Build muscle', sub: 'Lean weight gain'),
-            OptBtn(active: goalType == 'maintain', onTap: () => setState(() => goalType = 'maintain'), icon: const Icon(Icons.adjust, size: 22), label: 'Maintain', sub: 'Recomp & hold'),
+            OptBtn(active: goalType == 'fatLoss', onTap: () => setState(() => goalType = 'fatLoss'), icon: const Icon(Icons.local_fire_department, size: 22), label: _goalLabel('fatLoss'), sub: 'Cut while keeping muscle'),
+            OptBtn(active: goalType == 'weightGain', onTap: () => setState(() => goalType = 'weightGain'), icon: const Icon(Icons.trending_up, size: 22), label: _goalLabel('weightGain'), sub: 'Lean weight gain'),
+            OptBtn(active: goalType == 'maintain', onTap: () => setState(() => goalType = 'maintain'), icon: const Icon(Icons.adjust, size: 22), label: _goalLabel('maintain'), sub: 'Recomp & hold'),
           ],
         );
       case 'training':

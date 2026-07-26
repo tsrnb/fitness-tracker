@@ -113,6 +113,17 @@ class Plan {
 /// calories, since the TDEE formula is only an estimate.
 const calorieBufferOptions = [0, 50, 100, 150, 200];
 
+/// The single source of truth for goal labels — onboarding, Settings > Goals,
+/// and the Training Plan chooser all read this instead of each spelling out
+/// their own wording (previously "Lose fat"/"Build muscle" in onboarding vs.
+/// "Fat loss"/"Muscle gain" in Settings vs. "Muscle growth" in the chooser —
+/// three different names for the same `goalType` values).
+const goalOptions = [
+  MapEntry('fatLoss', 'Fat loss'),
+  MapEntry('weightGain', 'Muscle gain'),
+  MapEntry('maintain', 'Maintain'),
+];
+
 /// Standard Mifflin-St Jeor activity multipliers. Missing a "sedentary" tier
 /// forced genuinely inactive users into "Light" (1.375), overestimating
 /// their real maintenance calories — every tier from the standard table is
