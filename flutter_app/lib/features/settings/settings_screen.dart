@@ -430,10 +430,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return '$label · ${diff.toStringAsFixed(1)}kg to go';
   }
 
-  static const _heroGradientStart = Color(0xFFA64A2C);
-  static const _heroGradientEnd = Color(0xFF8F3F26);
-  static const _heroInk = Color(0xFFF7EAE1);
-
   Widget _heroCard(BuildContext context) {
     final app = widget.app;
     final name = app.user?.name ?? '';
@@ -448,7 +444,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [_heroGradientStart, _heroGradientEnd]),
+            gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [T.accent.withValues(alpha: 0.15), T.accent.withValues(alpha: 0.04)]),
+            border: Border.all(color: T.accent.withValues(alpha: 0.22)),
             borderRadius: BorderRadius.circular(T.rXL),
           ),
           child: Column(
@@ -461,23 +458,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     width: 48,
                     height: 48,
                     alignment: Alignment.center,
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.16), border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5)),
-                    child: Text(initial, style: const TextStyle(color: _heroInk, fontWeight: FontWeight.w800, fontSize: 19)),
+                    decoration: const BoxDecoration(shape: BoxShape.circle, color: T.accent),
+                    child: Text(initial, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 19)),
                   ),
                   const SizedBox(width: 13),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(name, style: const TextStyle(color: _heroInk, fontWeight: FontWeight.w800, fontSize: 18)),
-                        Padding(padding: const EdgeInsets.only(top: 2), child: Text(_heroSubtitle(), style: TextStyle(color: _heroInk.withValues(alpha: 0.85), fontSize: 13))),
+                        Text(name, style: TextStyle(color: T.text, fontWeight: FontWeight.w800, fontSize: 18)),
+                        Padding(padding: const EdgeInsets.only(top: 2), child: Text(_heroSubtitle(), style: TextStyle(color: T.muted, fontSize: 13))),
                       ],
                     ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(T.pill)),
-                    child: Text('Edit', style: mono(fontSize: 12, fontWeight: FontWeight.w700, color: _heroInk)),
+                    decoration: BoxDecoration(color: T.surface, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(T.pill)),
+                    child: Text('Edit', style: mono(fontSize: 12, fontWeight: FontWeight.w700, color: T.muted)),
                   ),
                 ],
               ),
@@ -498,12 +495,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _heroStat(String value, String label) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(T.rM)),
+        decoration: BoxDecoration(color: T.surface, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(T.rM)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(value, style: mono(fontSize: 17, fontWeight: FontWeight.w700, color: _heroInk)),
-            Padding(padding: const EdgeInsets.only(top: 2), child: Text(label, style: TextStyle(fontSize: 12.5, color: _heroInk.withValues(alpha: 0.8)))),
+            Text(value, style: mono(fontSize: 17, fontWeight: FontWeight.w700, color: T.accent)),
+            Padding(padding: const EdgeInsets.only(top: 2), child: Text(label, style: TextStyle(fontSize: 12.5, color: T.muted))),
           ],
         ),
       );
