@@ -1,11 +1,11 @@
 {
-    "name": "cuttracker",
-    "short_name": "cuttracker",
+    "name": "CutTracker",
+    "short_name": "CutTracker",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0C0C0D",
+    "theme_color": "#0C0C0D",
+    "description": "Track your cut: calories, macros, training and progress.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

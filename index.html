@@ -18,19 +18,36 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="Track your cut: calories, macros, training and progress.">
+  <!-- viewport-fit=cover lets the app draw into notch/home-indicator safe
+       areas instead of leaving them to the bare (white) page background. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Matches T.bg's dark default — colors the browser chrome (and any
+       sliver not yet covered by the Flutter canvas) instead of white. -->
+  <meta name="theme-color" content="#0C0C0D">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="cuttracker">
+  <meta name="apple-mobile-web-app-title" content="CutTracker">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>cuttracker</title>
+  <title>CutTracker</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    /* Without this, the page is white outside/underneath the Flutter canvas
+       (visible in the notch/home-indicator safe areas and while the app is
+       still loading) since the browser's default body background is white,
+       not the app's dark background. */
+    html, body {
+      height: 100%;
+      margin: 0;
+      background-color: #0C0C0D;
+    }
+  </style>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>
