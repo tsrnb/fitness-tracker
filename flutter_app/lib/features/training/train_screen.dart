@@ -5,7 +5,7 @@ import '../../shared/lib/helpers.dart';
 import '../../shared/lib/muscle_map.dart';
 import '../../app/app_state.dart';
 import '../exercises/exercise_library.dart';
-import 'program.dart';
+import 'splits.dart';
 import 'rest_timer_screen.dart';
 
 class TrainScreen extends StatefulWidget {
@@ -26,6 +26,7 @@ class _SetWork {
 }
 
 class _TrainScreenState extends State<TrainScreen> {
+  late TrainingSplit split;
   late String day;
   Map<String, List<_SetWork>> work = {};
   String? open;
@@ -34,14 +35,25 @@ class _TrainScreenState extends State<TrainScreen> {
   @override
   void initState() {
     super.initState();
+    split = activeSplit(widget.app.data.settings);
     final jsDow = DateTime.now().weekday % 7;
-    day = widget.initialDay ?? scheduleFromSettings(widget.app.data.settings)[jsDow] ?? 'Push';
+    day = widget.initialDay ?? scheduleFromSettings(widget.app.data.settings, split)[jsDow] ?? split.dayOrder.first;
     _initWork();
   }
 
   @override
   void didUpdateWidget(covariant TrainScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final newSplit = activeSplit(widget.app.data.settings);
+    if (newSplit.id != split.id) {
+      setState(() {
+        split = newSplit;
+        final jsDow = DateTime.now().weekday % 7;
+        day = scheduleFromSettings(widget.app.data.settings, split)[jsDow] ?? split.dayOrder.first;
+        _initWork();
+      });
+      return;
+    }
     if (widget.initialDay != null && widget.initialDay != oldWidget.initialDay) {
       setState(() {
         day = widget.initialDay!;
@@ -51,7 +63,7 @@ class _TrainScreenState extends State<TrainScreen> {
   }
 
   void _initWork() {
-    final items = program[day]!.items;
+    final items = split.program[day]!.items;
     final init = <String, List<_SetWork>>{};
     for (final it in items) {
       final hist = List<dynamic>.from(widget.app.data.history[it.name] ?? []);
@@ -116,15 +128,15 @@ class _TrainScreenState extends State<TrainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final items = program[day]!.items;
+    final items = split.program[day]!.items;
     final loggedCount = items.where((it) => _savedToday(it.name)).length;
     return ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           children: [
             SizedBox(height: 8),
-            Builder(builder: (_) => Padding(padding: EdgeInsets.only(bottom: 0), child: Text(program[day]!.focus, style: TextStyle(fontSize: 13, color: T.muted)))),
+            Builder(builder: (_) => Padding(padding: EdgeInsets.only(bottom: 0), child: Text(split.program[day]!.focus, style: TextStyle(fontSize: 13, color: T.muted)))),
             const SizedBox(height: 4),
-            PillTabs(options: dayOrder.map((d) => MapEntry(d, d)).toList(), value: day, onChange: _changeDay, scroll: true),
+            PillTabs(options: split.dayOrder.map((d) => MapEntry(d, d)).toList(), value: day, onChange: _changeDay, scroll: true),
             PaperCard(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

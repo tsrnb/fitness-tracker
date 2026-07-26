@@ -5,6 +5,7 @@ import '../../shared/widgets/atoms.dart';
 import '../../shared/lib/helpers.dart';
 import '../../app/app_state.dart';
 import '../training/program.dart';
+import '../training/splits.dart';
 import '../nutrition/quick_log_sheet.dart';
 import 'rest_day_screen.dart';
 import 'health_sync_banner.dart';
@@ -22,8 +23,9 @@ class DashboardScreen extends StatelessWidget {
     final st = app.data.settings;
     final today = todayStr();
     final jsDow = DateTime.now().weekday % 7; // JS getDay(): 0=Sun..6=Sat
-    final todayDay = scheduleFromSettings(st)[jsDow];
-    final exercises = todayDay != null ? program[todayDay]!.items : <ProgramItem>[];
+    final split = activeSplit(st);
+    final todayDay = scheduleFromSettings(st, split)[jsDow];
+    final exercises = todayDay != null ? split.program[todayDay]!.items : <ProgramItem>[];
     bool loggedToday(String name) {
       final h = List<dynamic>.from(app.data.history[name] ?? []);
       return h.isNotEmpty && h.last['date'] == today;

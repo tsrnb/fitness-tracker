@@ -10,6 +10,7 @@ import '../../shared/widgets/pressable_scale.dart';
 import '../../shared/lib/storage.dart';
 import '../../app/app_state.dart';
 import '../plan/plan_generator.dart';
+import '../training/plan_chooser_screen.dart';
 import 'profiles_page.dart';
 
 /// Full-page Settings, replacing the old modal sheet. A private nested
@@ -386,6 +387,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _navRow(context, icon: Icons.switch_account, label: 'Profiles', sub: app.user?.name ?? '', route: 'profiles'),
           _navRow(context, icon: Icons.badge, label: 'Personal details', sub: 'Name, age, height, weight', route: 'personal'),
           _navRow(context, icon: Icons.flag, label: 'Goals', sub: 'Goal type & activity level', route: 'goals'),
+          _navRow(context, icon: Icons.fitness_center, label: 'Training plan', sub: 'Explore splits ranked by effectiveness', route: 'trainingPlan'),
           _navRow(context, icon: Icons.pie_chart, label: 'Macros & calories', sub: 'Calorie buffer, protein, carbs, fat', route: 'macros'),
           _navRow(context, icon: Icons.restaurant, label: 'Diet preference', sub: 'Veg, egg, non-veg', route: 'diet'),
           _navRow(context, icon: Icons.palette, label: 'Appearance', sub: f['themeMode'] == 'light' ? 'Light' : 'Dark', route: 'appearance'),
@@ -633,6 +635,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final builder = switch (routeSettings.name) {
           'personal' => _personalPage,
           'goals' => _goalsPage,
+          'trainingPlan' => (ctx) => TrainingPlanChooserScreen(app: widget.app, controller: widget.controller),
           'macros' => _macrosPage,
           'diet' => _dietPage,
           'appearance' => _appearancePage,

@@ -3,7 +3,7 @@ import '../../shared/theme.dart';
 import '../../shared/widgets/atoms.dart';
 import '../../shared/lib/helpers.dart';
 import '../../app/app_state.dart';
-import '../training/program.dart';
+import '../training/splits.dart';
 
 /// Full-page "Your Plan" (replacing the old modal sheet — a bottom sheet
 /// squeezed a headline, 3 stat tiles, a training card and a full meal list
@@ -21,13 +21,27 @@ class PlanScreen extends StatefulWidget {
 }
 
 class _PlanScreenState extends State<PlanScreen> {
+  late TrainingSplit split;
   late List<String?> schedule;
   final _infoKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
-    schedule = scheduleFromSettings(widget.app.data.settings);
+    split = activeSplit(widget.app.data.settings);
+    schedule = scheduleFromSettings(widget.app.data.settings, split);
+  }
+
+  @override
+  void didUpdateWidget(covariant PlanScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final newSplit = activeSplit(widget.app.data.settings);
+    if (newSplit.id != split.id) {
+      setState(() {
+        split = newSplit;
+        schedule = scheduleFromSettings(widget.app.data.settings, split);
+      });
+    }
   }
 
   void _swap(int a, int b) {
@@ -133,7 +147,7 @@ class _PlanScreenState extends State<PlanScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Eyebrow('Training — 5-day PPLUL', margin: EdgeInsets.zero),
+              Eyebrow('Training — ${split.name}', margin: EdgeInsets.zero),
               GestureDetector(
                 key: _infoKey,
                 onTap: () => _showInfoBubble(plan['cardioNote'] as String),
@@ -201,23 +215,16 @@ class _PlanScreenState extends State<PlanScreen> {
 
   static const _dayLetters = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-  Color _splitColor(String split) => switch (split) {
-        'Push' => T.hero,
-        'Pull' => T.blue,
-        'Legs' => T.success,
-        'Upper' => T.lav,
-        _ => T.danger, // Lower
-      };
+  // Cycled by the day-type's position in the active split's dayOrder, so any
+  // split (3 to 6 distinct day types) gets a stable, distinct color per type.
+  static const _dayPalette = [T.hero, T.blue, T.success, T.lav, T.danger, Color(0xFFCBA858)];
 
-  // "Push"/"Pull" both truncate to "Pu" — spell out distinct 2-letter codes
-  // instead of naively slicing the name.
-  String _splitAbbr(String split) => switch (split) {
-        'Push' => 'Ps',
-        'Pull' => 'Pl',
-        'Legs' => 'Lg',
-        'Upper' => 'Up',
-        _ => 'Lo', // Lower
-      };
+  Color _dayColor(String dayType) {
+    final idx = split.dayOrder.indexOf(dayType);
+    return _dayPalette[(idx < 0 ? 0 : idx) % _dayPalette.length];
+  }
+
+  String _dayAbbr(String dayType) => split.dayAbbr[dayType] ?? dayType.substring(0, dayType.length < 2 ? dayType.length : 2);
 
   /// One day of the weekly split, as a real calendar strip instead of a
   /// paragraph of prose + a flat row of pill tags — today is highlighted,
@@ -260,21 +267,21 @@ class _PlanScreenState extends State<PlanScreen> {
   }
 
   Widget _dayCircle(int dow, {bool highlight = false, double scale = 1, bool elevated = false}) {
-    final split = schedule[dow];
+    final dayType = schedule[dow];
     final isToday = DateTime.now().weekday % 7 == dow;
-    final color = split != null ? _splitColor(split) : T.faint;
+    final color = dayType != null ? _dayColor(dayType) : T.faint;
     return Container(
       width: 38 * scale,
       height: 38 * scale,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: split != null ? color.withValues(alpha: 0.16) : (elevated ? T.surface : Colors.transparent),
+        color: dayType != null ? color.withValues(alpha: 0.16) : (elevated ? T.surface : Colors.transparent),
         border: Border.all(color: highlight ? T.accent : (isToday ? color : T.line), width: highlight ? 2.5 : (isToday ? 2 : 1)),
         boxShadow: elevated ? [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))] : null,
       ),
-      child: split != null
-          ? Text(_splitAbbr(split), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color))
+      child: dayType != null
+          ? Text(_dayAbbr(dayType), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color))
           : Icon(Icons.bedtime, size: 15, color: T.faint),
     );
   }

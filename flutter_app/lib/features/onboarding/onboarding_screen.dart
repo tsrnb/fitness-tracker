@@ -3,8 +3,14 @@ import '../../shared/theme.dart';
 import '../../shared/widgets/atoms.dart';
 import '../../shared/lib/helpers.dart';
 import '../plan/plan_generator.dart';
+import '../training/splits.dart';
 
 typedef OnboardingComplete = void Function(Map<String, dynamic> profile, Plan plan);
+
+/// Highest-scoring split for a goal, per [rankedSplits] — used both to
+/// pre-select a sensible default on the onboarding training step and as a
+/// fallback if that step is somehow skipped.
+String _topSplitId(String forGoal) => rankedSplits(forGoal).first.id;
 
 class OnboardingScreen extends StatefulWidget {
   final OnboardingComplete onComplete;
@@ -17,7 +23,7 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   int step = 0;
-  final steps = const ['name', 'sex', 'stats', 'goal', 'target', 'activity', 'diet', 'summary'];
+  final steps = const ['name', 'sex', 'stats', 'goal', 'training', 'target', 'activity', 'diet', 'summary'];
 
   String name = '';
   String sex = 'male';
@@ -29,6 +35,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   String activity = 'moderate';
   String goalType = 'fatLoss';
   String dietPref = 'veg';
+
+  /// Null until the user actually taps a split — until then, the training
+  /// step keeps re-deriving its pre-selection from whatever goal is picked.
+  String? trainingSplitId;
 
   @override
   void initState() {
@@ -93,6 +103,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       'targetWeight': double.tryParse(tw) ?? 0,
       'targetDate': targetDate,
       'activity': activity,
+      'trainingSplitId': trainingSplitId ?? _topSplitId(goalType),
     };
     widget.onComplete(profile, buildPlan());
   }
@@ -235,6 +246,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             OptBtn(active: goalType == 'maintain', onTap: () => setState(() => goalType = 'maintain'), icon: const Icon(Icons.adjust, size: 22), label: 'Maintain', sub: 'Recomp & hold'),
           ],
         );
+      case 'training':
+        final ranked = rankedSplits(goalType);
+        final selected = trainingSplitId ?? ranked.first.id;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _title('Training plan'),
+            _subtitle("Based on your goal, here's what tends to work best — pick one, or change it anytime in Settings."),
+            ...ranked.map((s) => OptBtn(
+                  active: selected == s.id,
+                  onTap: () => setState(() => trainingSplitId = s.id),
+                  icon: Icon(s.icon, size: 20),
+                  label: s.name,
+                  sub: '${s.effectiveness[goalType] ?? 0}% match · ${s.shortTag}',
+                )),
+          ],
+        );
       case 'target':
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -343,8 +371,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             AppCard(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Eyebrow('Training'),
-                Text(plan.splitNote, style: TextStyle(fontSize: 14, height: 1.5, color: T.text)),
-                Padding(padding: EdgeInsets.only(top: 8), child: Text(plan.cardioNote, style: TextStyle(fontSize: 13, color: T.muted))),
+                Text('${splitById(trainingSplitId ?? _topSplitId(goalType)).name} · ${splitById(trainingSplitId ?? _topSplitId(goalType)).shortTag}',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: T.text)),
+                Padding(padding: const EdgeInsets.only(top: 6), child: Text(plan.splitNote, style: TextStyle(fontSize: 13, height: 1.5, color: T.muted))),
+                Padding(padding: const EdgeInsets.only(top: 8), child: Text(plan.cardioNote, style: TextStyle(fontSize: 13, color: T.muted))),
               ]),
             ),
             const SizedBox(height: 12),

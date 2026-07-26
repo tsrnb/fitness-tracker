@@ -4,6 +4,7 @@ import '../../shared/theme.dart';
 import '../../shared/widgets/atoms.dart';
 import '../../shared/lib/muscle_map.dart';
 import '../training/program.dart';
+import '../training/splits.dart';
 import 'exercise_library.dart';
 
 class ExerciseDetailSheet extends StatelessWidget {
@@ -14,12 +15,18 @@ class ExerciseDetailSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final info = lib[name];
     if (info == null) return const SizedBox.shrink();
+    // Not tied to the user's active split — this sheet has no settings
+    // context, so it just surfaces the first matching prescription from any
+    // split's program as a representative sets/reps starting point.
     ProgramItem? prescribed;
-    for (final d in dayOrder) {
-      final match = program[d]!.items.where((x) => x.name == name);
-      if (match.isNotEmpty) {
-        prescribed = match.first;
-        break;
+    outer:
+    for (final split in trainingSplits) {
+      for (final d in split.dayOrder) {
+        final match = split.program[d]!.items.where((x) => x.name == name);
+        if (match.isNotEmpty) {
+          prescribed = match.first;
+          break outer;
+        }
       }
     }
     return Column(

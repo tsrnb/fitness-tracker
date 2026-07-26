@@ -211,9 +211,12 @@ Plan generatePlan({
   final cardioNote = goalType == 'fatLoss'
       ? "2–3 easy 15–20 min incline walks after lifting, plus daily steps. Don't overdo cardio — muscle retention is the priority."
       : 'Keep cardio light (steps + warm-ups). Extra cardio just eats into your surplus.';
+  // Goal-based rep-range guidance — deliberately doesn't name a split, since
+  // the caller shows the user's actual chosen split (see TrainingSplit)
+  // right alongside this note.
   final splitNote = goalType == 'weightGain'
-      ? '5-day PPLUL, lower reps on the first lift (6–8), push progressive overload every week.'
-      : '5-day PPLUL, keep the main lifts heavy (6–8) to hold strength, higher reps on isolation.';
+      ? 'Lower reps on the first lift of each session (6–8), push progressive overload every week.'
+      : 'Keep the main lifts heavy (6–8) to hold strength, higher reps on isolation work.';
 
   final meals = _mealDays[dietPref] ?? _mealDays['veg']!;
 

@@ -64,6 +64,7 @@ class _RootScreenState extends ConsumerState<RootScreen> {
               'targetWeight': profile['targetWeight'],
               'targetDate': profile['targetDate'],
               'activity': profile['activity'],
+              'trainingSplitId': profile['trainingSplitId'],
               'calorieGoal': plan.calorieGoal,
               'proteinGoal': plan.proteinGoal,
               'stepGoal': plan.stepGoal,
