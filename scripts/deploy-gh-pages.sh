@@ -8,7 +8,7 @@ WORKTREE_DIR="$REPO_ROOT/.gh-pages-worktree"
 BUILD_WEB_DIR="$REPO_ROOT/flutter_app/build/web"
 
 cd "$REPO_ROOT/flutter_app"
-flutter build web
+flutter build web --base-href /fitness-tracker/
 cd "$REPO_ROOT"
 
 if [ ! -d "$WORKTREE_DIR" ]; then
