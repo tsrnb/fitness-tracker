@@ -111,6 +111,11 @@ class AppController extends StateNotifier<AppState> {
     _init();
   }
 
+  /// `state` itself is protected (StateNotifier internals only) — this is
+  /// the public way for call sites outside app_state.dart (e.g. meal_log.dart,
+  /// which needs the day-boundary setting to default a date) to read current data.
+  AppState get current => state;
+
   final _backend = Backend.instance;
   Timer? _healthSyncTimer;
 
@@ -180,7 +185,7 @@ class AppController extends StateNotifier<AppState> {
       state = state.copyWith(healthSyncStatus: HealthSyncStatus.failed);
       return false;
     }
-    final today = todayStr();
+    final today = todayStr(state.data.settings);
     await update('activity', (prev) {
       final a = Map<String, dynamic>.from(prev ?? {});
       final cur = Map<String, dynamic>.from(a[today] ?? {});

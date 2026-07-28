@@ -21,7 +21,7 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final st = app.data.settings;
-    final today = todayStr();
+    final today = todayStr(st);
     final jsDow = DateTime.now().weekday % 7; // JS getDay(): 0=Sun..6=Sat
     final split = activeSplit(st);
     final todayDay = scheduleFromSettings(st, split)[jsDow];

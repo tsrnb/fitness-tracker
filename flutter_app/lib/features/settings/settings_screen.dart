@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/cupertino.dart' show CupertinoPicker;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
@@ -39,6 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     f = Map<String, dynamic>.from(widget.app.data.settings);
     f['calorieBuffer'] ??= 0;
     f['themeMode'] ??= 'dark';
+    f['dayStartMinutes'] ??= 0;
     final plan = widget.app.data.plan;
     f['proteinGoal'] ??= plan?['proteinGoal'] ?? 0;
     f['carbGoal'] ??= plan?['carbGoal'] ?? 0;
@@ -111,6 +113,132 @@ class _SettingsScreenState extends State<SettingsScreen> {
       s['themeMode'] = mode;
       return s;
     });
+  }
+
+  static String _fmtDayStart(int minutes) {
+    final h24 = (minutes ~/ 60) % 24;
+    final m = minutes % 60;
+    final period = h24 < 12 ? 'AM' : 'PM';
+    var h12 = h24 % 12;
+    if (h12 == 0) h12 = 12;
+    return '$h12:${m.toString().padLeft(2, '0')} $period';
+  }
+
+  void setDayStartMinutes(int minutes) {
+    set('dayStartMinutes', minutes);
+    // Same immediate-persist rationale as appearance — this only changes how
+    // "today" is computed going forward, nothing here feeds plan/macro
+    // recalculation, so there's no reason to gate it behind Save.
+    widget.controller.update('settings', (prev) {
+      final s = Map<String, dynamic>.from(prev ?? {});
+      s['dayStartMinutes'] = minutes;
+      return s;
+    });
+  }
+
+  void _openDayBoundarySheet(BuildContext context) {
+    int minutes = (f['dayStartMinutes'] as num?)?.toInt() ?? 0;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: T.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(T.rXL))),
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setSheetState) {
+          final h24 = (minutes ~/ 60) % 24;
+          final m = minutes % 60;
+          var h12 = h24 % 12;
+          if (h12 == 0) h12 = 12;
+          final isPm = h24 >= 12;
+
+          void recompute({int? newH12, int? newM, bool? newIsPm}) {
+            final hh12 = newH12 ?? h12;
+            final mm = newM ?? m;
+            final pm = newIsPm ?? isPm;
+            var hh24 = hh12 % 12;
+            if (pm) hh24 += 12;
+            setSheetState(() => minutes = hh24 * 60 + mm);
+          }
+
+          final isMidnight = minutes == 0;
+          return Padding(
+            padding: EdgeInsets.fromLTRB(20, 10, 20, 20 + MediaQuery.of(ctx).padding.bottom),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(width: 36, height: 4, decoration: BoxDecoration(color: T.line, borderRadius: BorderRadius.circular(3))),
+                ),
+                const SizedBox(height: 16),
+                Text('Day starts at', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: T.text)),
+                const SizedBox(height: 3),
+                Text('Scroll to any hour and minute — this is when your tracking day rolls over.', style: TextStyle(fontSize: 12, color: T.muted)),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 168,
+                  child: Row(children: [
+                    Expanded(
+                      child: CupertinoPicker(
+                        itemExtent: 40,
+                        scrollController: FixedExtentScrollController(initialItem: h12 - 1),
+                        onSelectedItemChanged: (i) => recompute(newH12: i + 1),
+                        selectionOverlay: Container(decoration: BoxDecoration(color: T.surface2, borderRadius: BorderRadius.circular(10))),
+                        children: List.generate(12, (i) => Center(child: Text('${i + 1}', style: mono(fontSize: 17, fontWeight: FontWeight.w700, color: T.text)))),
+                      ),
+                    ),
+                    Expanded(
+                      child: CupertinoPicker(
+                        itemExtent: 40,
+                        scrollController: FixedExtentScrollController(initialItem: m ~/ 5),
+                        onSelectedItemChanged: (i) => recompute(newM: i * 5),
+                        selectionOverlay: Container(decoration: BoxDecoration(color: T.surface2, borderRadius: BorderRadius.circular(10))),
+                        children: List.generate(12, (i) => Center(child: Text((i * 5).toString().padLeft(2, '0'), style: mono(fontSize: 17, fontWeight: FontWeight.w700, color: T.text)))),
+                      ),
+                    ),
+                    Expanded(
+                      child: CupertinoPicker(
+                        itemExtent: 40,
+                        scrollController: FixedExtentScrollController(initialItem: isPm ? 1 : 0),
+                        onSelectedItemChanged: (i) => recompute(newIsPm: i == 1),
+                        selectionOverlay: Container(decoration: BoxDecoration(color: T.surface2, borderRadius: BorderRadius.circular(10))),
+                        children: [
+                          Center(child: Text('AM', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: T.text))),
+                          Center(child: Text('PM', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: T.text))),
+                        ],
+                      ),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: T.surface2, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(12)),
+                  child: Text(
+                    isMidnight
+                        ? 'Set to ${_fmtDayStart(minutes)} — a standard calendar day. Logs after midnight always belong to the new date.'
+                        : 'Set to ${_fmtDayStart(minutes)} — logs before this time still count toward the previous day.',
+                    style: TextStyle(fontSize: 12, color: T.muted, height: 1.5),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                PrimaryButton(
+                  onTap: () {
+                    setDayStartMinutes(minutes);
+                    Navigator.of(ctx).pop();
+                  },
+                  child: const Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.check, size: 17),
+                    SizedBox(width: 8),
+                    Text('Set day start & save'),
+                  ]),
+                ),
+              ],
+            ),
+          );
+        });
+      },
+    );
   }
 
   static const _exportKeys = ['settings', 'weight', 'history', 'sessions', 'diet', 'water', 'activity', 'plan'];
@@ -384,12 +512,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required String badge,
     required Color badgeBg,
     required Color badgeColor,
-    required String route,
+    String? route,
+    VoidCallback? onTap,
   }) {
+    assert(route != null || onTap != null, '_badgeRow needs either a route to push or a custom onTap');
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: AppCard(
-        onTap: () => _navKey.currentState!.pushNamed(route),
+        onTap: onTap ?? () => _navKey.currentState!.pushNamed(route!),
         child: Row(children: [
           IconBubble(icon: Icon(icon, size: 16, color: iconColor), size: 32, background: iconBg),
           const SizedBox(width: 10),
@@ -532,6 +662,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           badge: switch (f['dietPref']) { 'egg' => 'Egg', 'nonveg' => 'Non-veg', _ => 'Veg' },
           badgeBg: T.success.withValues(alpha: 0.16), badgeColor: T.success,
           route: 'diet'),
+      _badgeRow(context,
+          icon: Icons.schedule, iconColor: T.blue, iconBg: T.blue.withValues(alpha: 0.16),
+          label: 'Day starts at', sub: 'When logs roll to the next day',
+          badge: _fmtDayStart((f['dayStartMinutes'] as num?)?.toInt() ?? 0),
+          badgeBg: T.blue.withValues(alpha: 0.16), badgeColor: T.blue,
+          onTap: () => _openDayBoundarySheet(context)),
       _badgeRow(context,
           icon: Icons.palette, iconColor: T.muted, iconBg: T.surface2,
           label: 'Appearance', sub: 'Theme',

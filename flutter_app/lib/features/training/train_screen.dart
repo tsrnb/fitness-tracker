@@ -100,14 +100,14 @@ class _TrainScreenState extends State<TrainScreen> {
 
   bool _savedToday(String name) {
     final h = List<dynamic>.from(widget.app.data.history[name] ?? []);
-    return h.isNotEmpty && h.last['date'] == todayStr();
+    return h.isNotEmpty && h.last['date'] == todayStr(widget.app.data.settings);
   }
 
   void _saveExercise(String name) {
     final rows = work[name] ?? [];
     final sets = rows.where((x) => x.reps > 0).map((x) => {'weight': x.weight, 'reps': x.reps}).toList();
     if (sets.isEmpty) return;
-    final today = todayStr();
+    final today = todayStr(widget.app.data.settings);
     widget.controller.update('history', (prev) {
       final h = Map<String, dynamic>.from(prev ?? {});
       final existing = List<dynamic>.from(h[name] ?? []).where((e) => e['date'] != today).toList();
@@ -165,7 +165,7 @@ class _TrainScreenState extends State<TrainScreen> {
               final isOpen = open == it.name;
               final saved = _savedToday(it.name);
               final allTop = prev != null &&
-                  prev['date'] != todayStr() &&
+                  prev['date'] != todayStr(widget.app.data.settings) &&
                   List.from(prev['sets']).length >= it.sets &&
                   List<Map<String, dynamic>>.from(prev['sets']).every((x) => (x['reps'] as num) >= topReps(it.reps));
               return AnimatedContainer(

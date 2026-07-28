@@ -1,6 +1,14 @@
 import 'package:intl/intl.dart';
 
-String todayStr() => DateFormat('yyyy-MM-dd').format(DateTime.now());
+// `settings['dayStartMinutes']` (0-1439, minutes since midnight) lets a day
+// roll over at a time other than midnight — e.g. 6am, so a late-night
+// session before then still counts toward the previous day. Defaults to 0
+// (midnight) when unset.
+String todayStr([Map<String, dynamic>? settings]) {
+  final minutes = (settings?['dayStartMinutes'] as num?)?.toInt() ?? 0;
+  final t = DateTime.now().subtract(Duration(minutes: minutes));
+  return DateFormat('yyyy-MM-dd').format(t);
+}
 
 String fmtDay(String iso) {
   final d = DateTime.parse('${iso}T00:00:00');

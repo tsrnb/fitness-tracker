@@ -48,7 +48,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
   void addMeals(List<ParsedMealItem> items) => addMealEntries(widget.controller, items);
 
   void removeMeal(dynamic id) {
-    final today = todayStr();
+    final today = todayStr(widget.app.data.settings);
     widget.controller.update('diet', (prev) {
       final d = Map<String, dynamic>.from(prev ?? {});
       final list = List<Map<String, dynamic>>.from(d[today] ?? []).where((m) => m['id'] != id).toList();
@@ -58,7 +58,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
   }
 
   void setWater(int n) {
-    final today = todayStr();
+    final today = todayStr(widget.app.data.settings);
     widget.controller.update('water', (prev) {
       final w = Map<String, dynamic>.from(prev ?? {});
       w[today] = n < 0 ? 0 : n;
@@ -161,7 +161,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
   @override
   Widget build(BuildContext context) {
     final st = widget.app.data.settings;
-    final today = todayStr();
+    final today = todayStr(st);
     final meals = List<Map<String, dynamic>>.from(widget.app.data.diet[today] ?? []);
     final kcal = meals.fold<num>(0, (a, b) => a + (b['kcal'] ?? 0));
     final prot = meals.fold<num>(0, (a, b) => a + (b['protein'] ?? 0));

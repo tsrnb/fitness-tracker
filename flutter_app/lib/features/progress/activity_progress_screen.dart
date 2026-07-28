@@ -12,7 +12,7 @@ class ActivityProgressScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final today = todayStr();
+    final today = todayStr(app.data.settings);
     final entries = app.data.activity.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
     final stepData = entries.map((e) => {'d': fmtDay(e.key), 'v': ((e.value['steps'] ?? 0) as num).toDouble()}).toList();
     final kcalData = entries.map((e) => {'d': fmtDay(e.key), 'v': ((e.value['kcal'] ?? 0) as num).toDouble()}).toList();

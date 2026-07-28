@@ -22,10 +22,10 @@ class _LogActivitySheetState extends State<LogActivitySheet> {
   String kcal = '';
   String min = '';
 
-  Map<String, dynamic> get _todayTotals => Map<String, dynamic>.from(widget.app.data.activity[todayStr()] ?? {'steps': 0, 'kcal': 0, 'min': 0});
+  Map<String, dynamic> get _todayTotals => Map<String, dynamic>.from(widget.app.data.activity[todayStr(widget.app.data.settings)] ?? {'steps': 0, 'kcal': 0, 'min': 0});
 
   void save() {
-    final today = todayStr();
+    final today = todayStr(widget.app.data.settings);
     final addSteps = int.tryParse(steps) ?? 0;
     final addKcal = int.tryParse(kcal) ?? 0;
     final addMin = int.tryParse(min) ?? 0;
@@ -53,7 +53,7 @@ class _LogActivitySheetState extends State<LogActivitySheet> {
 
   @override
   Widget build(BuildContext context) {
-    final today = todayStr();
+    final today = todayStr(widget.app.data.settings);
     final totals = _todayTotals;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

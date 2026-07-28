@@ -40,7 +40,7 @@ class _HealthSyncBannerState extends State<HealthSyncBanner> with SingleTickerPr
   Widget build(BuildContext context) {
     final status = widget.app.healthSyncStatus;
     final lastSynced = widget.app.healthLastSyncedAt;
-    final today = todayStr();
+    final today = todayStr(widget.app.data.settings);
     final act = Map<String, dynamic>.from(widget.app.data.activity[today] ?? {});
     final syncing = status == HealthSyncStatus.syncing;
 

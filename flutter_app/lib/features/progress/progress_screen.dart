@@ -5,6 +5,7 @@ import '../../shared/widgets/atoms.dart';
 import '../../shared/lib/helpers.dart';
 import '../../app/app_state.dart';
 import 'activity_progress_screen.dart';
+import 'week_rings.dart';
 
 class ProgressScreen extends StatefulWidget {
   final AppState app;
@@ -32,7 +33,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
   void _logWeight() {
     final v = double.tryParse(wCtrl.text);
     if (v == null) return;
-    final d = todayStr();
+    final d = todayStr(widget.app.data.settings);
     final loggedAt = DateTime.now().millisecondsSinceEpoch;
     widget.controller.update('weight', (prev) {
       // Every log is kept as its own point (rather than overwriting the
@@ -338,23 +339,27 @@ class _ProgressScreenState extends State<ProgressScreen> {
     return [
       periodPicker,
       metricPicker,
-      AppCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Eyebrow('$metricLabel trend'),
-            if (values.length > 1)
-              SizedBox(height: 200, child: _areaChart(values, labels))
-            else
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Center(child: Text('Log meals across more days to see your trend.', style: TextStyle(color: T.muted, fontSize: 13))),
-              ),
-            const SizedBox(height: 12),
-            Text(summary, style: TextStyle(color: T.muted, fontSize: 13, fontWeight: FontWeight.w600)),
-          ],
+      Padding(
+        padding: const EdgeInsets.only(bottom: 18),
+        child: AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Eyebrow('$metricLabel trend'),
+              if (values.length > 1)
+                SizedBox(height: 200, child: _areaChart(values, labels))
+              else
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: Text('Log meals across more days to see your trend.', style: TextStyle(color: T.muted, fontSize: 13))),
+                ),
+              const SizedBox(height: 12),
+              Text(summary, style: TextStyle(color: T.muted, fontSize: 13, fontWeight: FontWeight.w600)),
+            ],
+          ),
         ),
       ),
+      DailyLogSection(app: widget.app, controller: widget.controller),
     ];
   }
 
