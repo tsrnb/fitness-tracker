@@ -160,6 +160,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
           }
 
           final isMidnight = minutes == 0;
+
+          // CupertinoPicker's own off-center dimming is a fixed, non-tunable
+          // 44.7% opacity — against this app's dark surfaces that reads as
+          // "still basically white," not a clear selected/unselected split.
+          // Styling each row explicitly from known state guarantees the
+          // selected row is unmistakably white/bold instead of leaving it to
+          // an internal effect neither adjustable nor easy to verify.
+          Widget wheelItem(String label, bool selected) => Center(
+                child: Text(
+                  label,
+                  style: selected
+                      ? mono(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)
+                      : mono(fontSize: 16, fontWeight: FontWeight.w500, color: T.faint),
+                ),
+              );
+
           return Padding(
             padding: EdgeInsets.fromLTRB(20, 10, 20, 20 + MediaQuery.of(ctx).padding.bottom),
             child: Column(
@@ -194,7 +210,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        children: List.generate(12, (i) => Center(child: Text('${i + 1}', style: mono(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white)))),
+                        children: List.generate(12, (i) => wheelItem('${i + 1}', i + 1 == h12)),
                       ),
                     ),
                     Expanded(
@@ -214,7 +230,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        children: List.generate(12, (i) => Center(child: Text((i * 5).toString().padLeft(2, '0'), style: mono(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white)))),
+                        children: List.generate(12, (i) => wheelItem((i * 5).toString().padLeft(2, '0'), i * 5 == m)),
                       ),
                     ),
                     Expanded(
@@ -235,8 +251,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
                         children: [
-                          Center(child: Text('AM', style: mono(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white))),
-                          Center(child: Text('PM', style: mono(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white))),
+                          wheelItem('AM', !isPm),
+                          wheelItem('PM', isPm),
                         ],
                       ),
                     ),
