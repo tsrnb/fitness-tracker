@@ -175,35 +175,68 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text('Scroll to any hour and minute — this is when your tracking day rolls over.', style: TextStyle(fontSize: 12, color: T.muted)),
                 const SizedBox(height: 16),
                 SizedBox(
-                  height: 168,
+                  height: 190,
                   child: Row(children: [
                     Expanded(
                       child: CupertinoPicker(
-                        itemExtent: 40,
+                        itemExtent: 46,
                         scrollController: FixedExtentScrollController(initialItem: h12 - 1),
                         onSelectedItemChanged: (i) => recompute(newH12: i + 1),
-                        selectionOverlay: Container(decoration: BoxDecoration(color: T.surface2, borderRadius: BorderRadius.circular(10))),
-                        children: List.generate(12, (i) => Center(child: Text('${i + 1}', style: mono(fontSize: 17, fontWeight: FontWeight.w700, color: T.text)))),
+                        // CupertinoPicker always paints selectionOverlay ON TOP of the
+                        // wheel — an opaque fill here hides the very number it's meant to
+                        // highlight, which is what made the selected row look "greyed
+                        // out" instead of crisp white/bold. Translucent fill + a full-
+                        // opacity border reads as a highlight band without hiding the text.
+                        selectionOverlay: Container(
+                          decoration: BoxDecoration(
+                            color: T.surface2.withValues(alpha: 0.55),
+                            border: Border.all(color: T.line),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        children: List.generate(12, (i) => Center(child: Text('${i + 1}', style: mono(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white)))),
                       ),
                     ),
                     Expanded(
                       child: CupertinoPicker(
-                        itemExtent: 40,
+                        itemExtent: 46,
                         scrollController: FixedExtentScrollController(initialItem: m ~/ 5),
                         onSelectedItemChanged: (i) => recompute(newM: i * 5),
-                        selectionOverlay: Container(decoration: BoxDecoration(color: T.surface2, borderRadius: BorderRadius.circular(10))),
-                        children: List.generate(12, (i) => Center(child: Text((i * 5).toString().padLeft(2, '0'), style: mono(fontSize: 17, fontWeight: FontWeight.w700, color: T.text)))),
+                        // CupertinoPicker always paints selectionOverlay ON TOP of the
+                        // wheel — an opaque fill here hides the very number it's meant to
+                        // highlight, which is what made the selected row look "greyed
+                        // out" instead of crisp white/bold. Translucent fill + a full-
+                        // opacity border reads as a highlight band without hiding the text.
+                        selectionOverlay: Container(
+                          decoration: BoxDecoration(
+                            color: T.surface2.withValues(alpha: 0.55),
+                            border: Border.all(color: T.line),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        children: List.generate(12, (i) => Center(child: Text((i * 5).toString().padLeft(2, '0'), style: mono(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white)))),
                       ),
                     ),
                     Expanded(
                       child: CupertinoPicker(
-                        itemExtent: 40,
+                        itemExtent: 46,
                         scrollController: FixedExtentScrollController(initialItem: isPm ? 1 : 0),
                         onSelectedItemChanged: (i) => recompute(newIsPm: i == 1),
-                        selectionOverlay: Container(decoration: BoxDecoration(color: T.surface2, borderRadius: BorderRadius.circular(10))),
+                        // CupertinoPicker always paints selectionOverlay ON TOP of the
+                        // wheel — an opaque fill here hides the very number it's meant to
+                        // highlight, which is what made the selected row look "greyed
+                        // out" instead of crisp white/bold. Translucent fill + a full-
+                        // opacity border reads as a highlight band without hiding the text.
+                        selectionOverlay: Container(
+                          decoration: BoxDecoration(
+                            color: T.surface2.withValues(alpha: 0.55),
+                            border: Border.all(color: T.line),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
                         children: [
-                          Center(child: Text('AM', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: T.text))),
-                          Center(child: Text('PM', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: T.text))),
+                          Center(child: Text('AM', style: mono(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white))),
+                          Center(child: Text('PM', style: mono(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white))),
                         ],
                       ),
                     ),
