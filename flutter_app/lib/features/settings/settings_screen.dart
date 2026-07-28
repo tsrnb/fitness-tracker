@@ -12,6 +12,7 @@ import '../../app/app_state.dart';
 import '../plan/plan_generator.dart';
 import '../training/plan_chooser_screen.dart';
 import '../training/splits.dart';
+import 'day_start_applied_screen.dart';
 import 'profiles_page.dart';
 
 /// Full-page Settings, replacing the old modal sheet. A private nested
@@ -273,8 +274,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 14),
                 PrimaryButton(
                   onTap: () {
-                    setDayStartMinutes(minutes);
+                    final applied = minutes;
+                    setDayStartMinutes(applied);
                     Navigator.of(ctx).pop();
+                    // A toast would undersell this — the day boundary is read by
+                    // every screen that groups logs by day, so the confirmation
+                    // is a full-screen moment that shows that reach directly
+                    // instead of just saying "saved."
+                    Navigator.of(context, rootNavigator: true).push(PageRouteBuilder(
+                      opaque: true,
+                      transitionDuration: const Duration(milliseconds: 280),
+                      reverseTransitionDuration: const Duration(milliseconds: 200),
+                      pageBuilder: (_, __, ___) => DayStartAppliedScreen(timeLabel: _fmtDayStart(applied), isMidnight: applied == 0),
+                      transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+                    ));
                   },
                   child: const Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
                     Icon(Icons.check, size: 17),

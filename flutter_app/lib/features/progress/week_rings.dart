@@ -6,6 +6,7 @@ import '../../shared/widgets/atoms.dart';
 import '../../app/app_state.dart';
 import '../../shared/lib/helpers.dart';
 import '../nutrition/meal_log.dart';
+import '../nutrition/parse_meal_lines.dart';
 
 /// Add-on section for Progress → Nutrition: a week of dual calorie/protein
 /// rings (outer = calories vs goal, inner = protein vs goal), tap a day to
@@ -395,19 +396,28 @@ class _DayEditorSheetState extends State<_DayEditorSheet> {
   final cName = TextEditingController();
   final cK = TextEditingController();
   final cP = TextEditingController();
+  final logTextCtrl = TextEditingController();
   bool showAdd = false;
+  // null = choosing between the two entry modes; set once a mode is picked.
+  String? addMode;
 
   @override
   void dispose() {
     cName.dispose();
     cK.dispose();
     cP.dispose();
+    logTextCtrl.dispose();
     super.dispose();
   }
 
   void _remove(dynamic id) {
     removeMealEntry(widget.controller, widget.date, id);
     setState(() => meals.removeWhere((m) => m['id'] == id));
+  }
+
+  void _closeAdd() {
+    showAdd = false;
+    addMode = null;
   }
 
   void _add() {
@@ -421,7 +431,19 @@ class _DayEditorSheetState extends State<_DayEditorSheet> {
       cName.clear();
       cK.clear();
       cP.clear();
-      showAdd = false;
+      _closeAdd();
+    });
+  }
+
+  void _logQuick(List<ParsedMealItem> items) {
+    if (items.isEmpty) return;
+    addMealEntries(widget.controller, items, widget.date);
+    setState(() {
+      for (final it in items) {
+        meals.add({'id': DateTime.now().millisecondsSinceEpoch + meals.length, 'name': it.name, 'kcal': it.kcal, 'protein': it.protein, 'carb': it.carb, 'fat': it.fat, 'fiber': it.fiber});
+      }
+      logTextCtrl.clear();
+      _closeAdd();
     });
   }
 
@@ -434,6 +456,32 @@ class _DayEditorSheetState extends State<_DayEditorSheet> {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: T.line)),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: T.line)),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: T.accent)),
+      );
+
+  Widget _modeButton(String label, String sub, IconData icon, VoidCallback onTap) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+          decoration: BoxDecoration(color: T.surface2, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(12)),
+          alignment: Alignment.center,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 18, color: T.accent),
+            const SizedBox(height: 6),
+            Text(label, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: T.text)),
+            Padding(padding: const EdgeInsets.only(top: 2), child: Text(sub, style: TextStyle(fontSize: 10, color: T.muted), textAlign: TextAlign.center)),
+          ]),
+        ),
+      );
+
+  Widget _backHeader(String title) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(children: [
+          GestureDetector(
+            onTap: () => setState(() => addMode = null),
+            child: Icon(Icons.chevron_left, size: 20, color: T.muted),
+          ),
+          Expanded(child: Text(title, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: T.text))),
+        ]),
       );
 
   @override
@@ -515,10 +563,17 @@ class _DayEditorSheetState extends State<_DayEditorSheet> {
               child: Text('＋ Add food', style: TextStyle(color: T.muted, fontWeight: FontWeight.w700, fontSize: 13)),
             ),
           )
-        else
+        else if (addMode == null)
+          Row(children: [
+            Expanded(child: _modeButton('Custom add', 'One item, exact macros', Icons.edit_note, () => setState(() => addMode = 'custom'))),
+            const SizedBox(width: 8),
+            Expanded(child: _modeButton('Quick add', 'Log a meal, one line each', Icons.bolt, () => setState(() => addMode = 'quick'))),
+          ])
+        else if (addMode == 'custom')
           AppCard(
             padding: const EdgeInsets.all(12),
             child: Column(children: [
+              _backHeader('Custom add'),
               TextField(controller: cName, style: TextStyle(color: T.text, fontSize: 14), decoration: _dec('Food name')),
               const SizedBox(height: 8),
               Row(children: [
@@ -531,7 +586,60 @@ class _DayEditorSheetState extends State<_DayEditorSheet> {
                 child: PrimaryButton(padding: const EdgeInsets.all(12), onTap: _add, child: const Text('Add to this day')),
               ),
             ]),
-          ),
+          )
+        else
+          Builder(builder: (context) {
+            final parsedPreview = parseMealLines(logTextCtrl.text);
+            final previewKcal = parsedPreview.fold<int>(0, (a, b) => a + b.kcal);
+            final previewProtein = parsedPreview.fold<int>(0, (a, b) => a + b.protein);
+            return AppCard(
+              padding: const EdgeInsets.all(12),
+              child: Column(children: [
+                _backHeader('Quick log a meal'),
+                TextField(
+                  controller: logTextCtrl,
+                  onChanged: (_) => setState(() {}),
+                  maxLines: 3,
+                  style: mono(fontSize: 13, color: T.text),
+                  decoration: _dec('2 Rotis, 240, 6\nDal tadka, 180, 12'),
+                ),
+                if (parsedPreview.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Column(children: [
+                      ...parsedPreview.map((it) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                              Expanded(child: Text(it.name, style: TextStyle(fontSize: 12, color: T.muted))),
+                              Text('${it.kcal} · ${it.protein}g', style: mono(fontSize: 12, color: T.muted)),
+                            ]),
+                          )),
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        margin: const EdgeInsets.only(top: 4),
+                        decoration: BoxDecoration(border: Border(top: BorderSide(color: T.line))),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Total (${parsedPreview.length} item${parsedPreview.length > 1 ? "s" : ""})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: T.text)),
+                            Text('$previewKcal · ${previewProtein}g', style: mono(fontSize: 13, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                    ]),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: PrimaryButton(
+                    padding: const EdgeInsets.all(12),
+                    opacity: parsedPreview.isNotEmpty ? 1 : 0.45,
+                    onTap: parsedPreview.isEmpty ? null : () => _logQuick(parsedPreview),
+                    child: const Text('Log meal'),
+                  ),
+                ),
+              ]),
+            );
+          }),
       ],
     );
   }
