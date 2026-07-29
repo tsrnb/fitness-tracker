@@ -19,15 +19,7 @@ class NutritionScreen extends StatefulWidget {
 const _fiberColor = Color(0xFFC28A45);
 
 class _NutritionScreenState extends State<NutritionScreen> {
-  void _openLogFoodSheet() => showAppSheet(
-        context,
-        LogFoodSheet(app: widget.app, controller: widget.controller, onFoodAdded: _toastAdded),
-      );
-
-  void _toastAdded(String foodName) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Added $foodName to today\'s log.')));
-  }
+  void _openLogFoodSheet() => showAppSheet(context, LogFoodSheet(app: widget.app, controller: widget.controller));
 
   void removeMeal(dynamic id) {
     final today = todayStr(widget.app.data.settings);

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../shared/theme.dart';
 import '../../shared/widgets/atoms.dart';
@@ -9,10 +10,12 @@ import 'meal_log.dart';
 /// The single entry point for logging food (today), meant to be opened from
 /// anywhere the app offers a "log food" action — the Nutrition screen's own
 /// button, the dashboard's quick action, etc. — instead of each place having
-/// its own bespoke sheet. Fully self-contained: only needs `app`/`controller`
-/// and a callback for confirming a successful add, no page-level state to
-/// wire up (the old "save to your library?" step used to live on the calling
-/// page; it's now part of the Custom entry flow itself).
+/// its own bespoke sheet. Fully self-contained: only needs `app`/`controller`,
+/// no page-level state to wire up (the old "save to your library?" step used
+/// to live on the calling page; it's now part of the Custom entry flow
+/// itself). Every path confirms success in place — the button that was just
+/// tapped morphs into a green "Saved" state — and the sheet auto-dismisses
+/// shortly after, rather than a toast on the page underneath.
 ///
 /// Three paths, given names that describe what each actually does rather
 /// than a repeated "quick X/Y" that was easy to mix up:
@@ -22,11 +25,74 @@ import 'meal_log.dart';
 class LogFoodSheet extends StatefulWidget {
   final AppState app;
   final AppController controller;
-  final void Function(String foodName) onFoodAdded;
-  const LogFoodSheet({super.key, required this.app, required this.controller, required this.onFoodAdded});
+  const LogFoodSheet({super.key, required this.app, required this.controller});
 
   @override
   State<LogFoodSheet> createState() => _LogFoodSheetState();
+}
+
+/// A submit button that morphs into a green "Saved" pill on tap, holds
+/// briefly, then closes the given sheet route — the shared confirmation
+/// pattern used everywhere in this sheet instead of a toast.
+class _SaveMorphButton extends StatefulWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final double opacity;
+  final FutureOr<void> Function()? onTap;
+  const _SaveMorphButton({required this.child, required this.onTap, this.padding = const EdgeInsets.all(16), this.opacity = 1});
+
+  @override
+  State<_SaveMorphButton> createState() => _SaveMorphButtonState();
+}
+
+class _SaveMorphButtonState extends State<_SaveMorphButton> {
+  bool _saved = false;
+  bool _busy = false;
+
+  void _handleTap() async {
+    if (_busy || _saved || widget.onTap == null) return;
+    setState(() => _busy = true);
+    await widget.onTap!();
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _saved = true;
+    });
+    Future.delayed(const Duration(milliseconds: 650), () {
+      if (context.mounted) Navigator.of(context).pop();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 240),
+      transitionBuilder: (child, anim) => ScaleTransition(
+        scale: CurvedAnimation(parent: anim, curve: Curves.easeOutBack),
+        child: FadeTransition(opacity: anim, child: child),
+      ),
+      child: _saved
+          ? Container(
+              key: const ValueKey('saved'),
+              width: double.infinity,
+              padding: widget.padding,
+              decoration: BoxDecoration(color: T.success, borderRadius: BorderRadius.circular(T.rM)),
+              alignment: Alignment.center,
+              child: const Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.check_circle, color: Colors.white, size: 18),
+                SizedBox(width: 8),
+                Text('Saved', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+              ]),
+            )
+          : PrimaryButton(
+              key: const ValueKey('submit'),
+              padding: widget.padding,
+              opacity: _busy ? 0.7 : widget.opacity,
+              onTap: widget.onTap == null ? null : _handleTap,
+              child: widget.child,
+            ),
+    );
+  }
 }
 
 class _LogFoodSheetState extends State<LogFoodSheet> {
@@ -95,8 +161,6 @@ class _LogFoodSheetState extends State<LogFoodSheet> {
     if (items.isEmpty) return;
     addMealEntries(widget.controller, items);
     logTextCtrl.clear();
-    Navigator.of(context).pop();
-    widget.onFoodAdded(items.length == 1 ? items.first.name : '${items.length} items');
   }
 
   void _submitCustom() {
@@ -113,7 +177,7 @@ class _LogFoodSheetState extends State<LogFoodSheet> {
     });
   }
 
-  void _confirmCustom(bool saveForFuture) async {
+  Future<void> _confirmCustom(bool saveForFuture) async {
     final p = pendingCustom!;
     addMealEntry(widget.controller, p['name'], p['kcal'], p['protein'], p['carb'], p['fat'], p['fiber']);
     if (saveForFuture) {
@@ -126,9 +190,6 @@ class _LogFoodSheetState extends State<LogFoodSheet> {
         (p['fiber'] as num).toDouble(),
       );
     }
-    if (!mounted) return;
-    Navigator.of(context).pop();
-    widget.onFoodAdded(p['name'] as String);
   }
 
   @override
@@ -149,7 +210,7 @@ class _LogFoodSheetState extends State<LogFoodSheet> {
           ),
           const SizedBox(height: 8),
           GestureDetector(
-            onTap: () => showAppSheet(context, _BrowseFoodsSheet(app: widget.app, controller: widget.controller, onFoodAdded: widget.onFoodAdded)),
+            onTap: () => showAppSheet(context, _BrowseFoodsSheet(app: widget.app, controller: widget.controller)),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
@@ -189,10 +250,32 @@ class _LogFoodSheetState extends State<LogFoodSheet> {
   }
 }
 
-class _ConfirmSaveBody extends StatelessWidget {
+class _ConfirmSaveBody extends StatefulWidget {
   final Map<String, dynamic> pending;
-  final void Function(bool saveForFuture) onConfirm;
+  final Future<void> Function(bool saveForFuture) onConfirm;
   const _ConfirmSaveBody({required this.pending, required this.onConfirm});
+
+  @override
+  State<_ConfirmSaveBody> createState() => _ConfirmSaveBodyState();
+}
+
+class _ConfirmSaveBodyState extends State<_ConfirmSaveBody> {
+  bool _busy = false;
+  bool _saved = false;
+
+  void _handle(bool saveForFuture) async {
+    if (_busy || _saved) return;
+    setState(() => _busy = true);
+    await widget.onConfirm(saveForFuture);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _saved = true;
+    });
+    Future.delayed(const Duration(milliseconds: 650), () {
+      if (context.mounted) Navigator.of(context).pop();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -205,30 +288,57 @@ class _ConfirmSaveBody extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 14),
           child: Text.rich(TextSpan(style: TextStyle(color: T.muted, fontSize: 14), children: [
             const TextSpan(text: 'Add '),
-            TextSpan(text: '${pending['name']}', style: TextStyle(color: T.text, fontWeight: FontWeight.bold)),
-            TextSpan(text: ' (${pending['kcal']} kcal · ${pending['protein']}g) to your food library so it\'s one tap in future?'),
+            TextSpan(text: '${widget.pending['name']}', style: TextStyle(color: T.text, fontWeight: FontWeight.bold)),
+            TextSpan(text: ' (${widget.pending['kcal']} kcal · ${widget.pending['protein']}g) to your food library so it\'s one tap in future?'),
           ])),
         ),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: PrimaryButton(
-            onTap: () => onConfirm(true),
-            child: const Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.save, size: 17),
-              SizedBox(width: 8),
-              Text('Save & add to today'),
-            ]),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 240),
+          transitionBuilder: (child, anim) => ScaleTransition(
+            scale: CurvedAnimation(parent: anim, curve: Curves.easeOutBack),
+            child: FadeTransition(opacity: anim, child: child),
           ),
-        ),
-        GestureDetector(
-          onTap: () => onConfirm(false),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(border: Border.all(color: T.line), borderRadius: BorderRadius.circular(T.pill)),
-            alignment: Alignment.center,
-            child: Text('Just add for today', style: TextStyle(color: T.text, fontWeight: FontWeight.w600)),
-          ),
+          child: _saved
+              ? Container(
+                  key: const ValueKey('saved'),
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: T.success, borderRadius: BorderRadius.circular(T.rM)),
+                  alignment: Alignment.center,
+                  child: const Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.check_circle, color: Colors.white, size: 18),
+                    SizedBox(width: 8),
+                    Text('Saved', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                  ]),
+                )
+              : Column(
+                  key: const ValueKey('actions'),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: PrimaryButton(
+                        opacity: _busy ? 0.7 : 1,
+                        onTap: () => _handle(true),
+                        child: const Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.save, size: 17),
+                          SizedBox(width: 8),
+                          Text('Save & add to today'),
+                        ]),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => _handle(false),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(border: Border.all(color: T.line), borderRadius: BorderRadius.circular(T.pill)),
+                        alignment: Alignment.center,
+                        child: Text('Just add for today', style: TextStyle(color: T.text, fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                  ],
+                ),
         ),
       ],
     );
@@ -345,7 +455,7 @@ class _QuickAddBodyState extends State<_QuickAddBody> {
               ),
             Padding(
               padding: const EdgeInsets.only(top: 10),
-              child: PrimaryButton(
+              child: _SaveMorphButton(
                 padding: const EdgeInsets.all(12),
                 opacity: parsedPreview.isNotEmpty ? 1 : 0.45,
                 onTap: parsedPreview.isEmpty ? null : () => widget.onSubmit(parsedPreview),
@@ -438,31 +548,40 @@ class _CustomAddBodyState extends State<_CustomAddBody> {
 
 /// Nested sheet opened from "Browse foods" — the grid of suggested + saved
 /// foods that used to sit permanently on the Nutrition page. Tapping a card
-/// adds it immediately and returns all the way to the page it was opened
-/// from (closing this sheet and the picker beneath it), with a toast
-/// confirming what was added — "quick" means one tap and done, not staying
-/// in a sheet to add several.
-class _BrowseFoodsSheet extends StatelessWidget {
+/// adds it immediately: that card morphs green with a checkmark, then both
+/// this sheet and the picker beneath it auto-dismiss — "quick" means one tap
+/// and done, not staying in a sheet to add several.
+class _BrowseFoodsSheet extends StatefulWidget {
   final AppState app;
   final AppController controller;
-  final void Function(String foodName) onFoodAdded;
-  const _BrowseFoodsSheet({required this.app, required this.controller, required this.onFoodAdded});
+  const _BrowseFoodsSheet({required this.app, required this.controller});
 
   @override
-  Widget build(BuildContext context) {
-    final st = app.data.settings;
-    final quick = <(FoodItem, int?)>[
-      ...foodsForPref(st['dietPref'] ?? 'veg').map((f) => (f, null)),
-      ...app.foods.map((f) => (FoodItem(f.name, f.kcal.round(), f.protein.round(), f.carb.round(), f.fat.round(), f.fiber.round()), f.id)),
-    ];
+  State<_BrowseFoodsSheet> createState() => _BrowseFoodsSheetState();
+}
 
-    void addAndReturn(FoodItem f) {
-      addMealEntry(controller, f.name, f.kcal, f.protein, f.carb, f.fat, f.fiber);
+class _BrowseFoodsSheetState extends State<_BrowseFoodsSheet> {
+  int? _addedIndex;
+
+  void _tap(int index, FoodItem f) {
+    if (_addedIndex != null) return;
+    addMealEntry(widget.controller, f.name, f.kcal, f.protein, f.carb, f.fat, f.fiber);
+    setState(() => _addedIndex = index);
+    Future.delayed(const Duration(milliseconds: 650), () {
+      if (!context.mounted) return;
       final nav = Navigator.of(context);
       nav.pop(); // this sheet
       nav.pop(); // the Log food picker underneath it
-      onFoodAdded(f.name);
-    }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final st = widget.app.data.settings;
+    final quick = <(FoodItem, int?)>[
+      ...foodsForPref(st['dietPref'] ?? 'veg').map((f) => (f, null)),
+      ...widget.app.foods.map((f) => (FoodItem(f.name, f.kcal.round(), f.protein.round(), f.carb.round(), f.fat.round(), f.fiber.round()), f.id)),
+    ];
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -477,37 +596,57 @@ class _BrowseFoodsSheet extends StatelessWidget {
           mainAxisSpacing: 8,
           crossAxisSpacing: 8,
           childAspectRatio: 2.6,
-          children: quick.map((entry) {
-            final f = entry.$1;
-            final savedId = entry.$2;
+          children: quick.asMap().entries.map((entry) {
+            final index = entry.key;
+            final f = entry.value.$1;
+            final savedId = entry.value.$2;
+            final isAdded = _addedIndex == index;
             return Stack(
               children: [
                 GestureDetector(
-                  onTap: () => addAndReturn(f),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(color: T.surface, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(12)),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(right: 20),
-                          child: Text(f.name, style: TextStyle(fontSize: 13, color: T.text), overflow: TextOverflow.ellipsis),
-                        ),
-                        Padding(padding: const EdgeInsets.only(top: 3), child: Text('${f.kcal} kcal · P${f.protein} C${f.carb} F${f.fat}', style: mono(fontSize: 11, color: T.muted), overflow: TextOverflow.ellipsis)),
-                      ],
+                  onTap: () => _tap(index, f),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    transitionBuilder: (child, anim) => ScaleTransition(scale: CurvedAnimation(parent: anim, curve: Curves.easeOutBack), child: FadeTransition(opacity: anim, child: child)),
+                    child: isAdded
+                        ? Container(
+                            key: ValueKey('added-$index'),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(color: T.success, borderRadius: BorderRadius.circular(12)),
+                            alignment: Alignment.center,
+                            child: const Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
+                              Icon(Icons.check_circle, color: Colors.white, size: 16),
+                              SizedBox(width: 6),
+                              Text('Added', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                            ]),
+                          )
+                        : Container(
+                            key: ValueKey('food-$index'),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(color: T.surface, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(12)),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 20),
+                                  child: Text(f.name, style: TextStyle(fontSize: 13, color: T.text), overflow: TextOverflow.ellipsis),
+                                ),
+                                Padding(padding: const EdgeInsets.only(top: 3), child: Text('${f.kcal} kcal · P${f.protein} C${f.carb} F${f.fat}', style: mono(fontSize: 11, color: T.muted), overflow: TextOverflow.ellipsis)),
+                              ],
+                            ),
+                          ),
+                  ),
+                ),
+                if (!isAdded)
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: GestureDetector(
+                      onTap: () => showAppSheet(context, _EditFoodSheet(controller: widget.controller, id: savedId, food: f)),
+                      child: Icon(Icons.edit, size: 15, color: T.muted),
                     ),
                   ),
-                ),
-                Positioned(
-                  top: 4,
-                  right: 4,
-                  child: GestureDetector(
-                    onTap: () => showAppSheet(context, _EditFoodSheet(controller: controller, id: savedId, food: f)),
-                    child: Icon(Icons.edit, size: 15, color: T.muted),
-                  ),
-                ),
               ],
             );
           }).toList(),

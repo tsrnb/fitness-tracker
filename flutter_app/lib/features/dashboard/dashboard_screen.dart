@@ -127,17 +127,7 @@ class DashboardScreen extends StatelessWidget {
                         ActionPill(
                           label: 'Log food',
                           icon: const Icon(Icons.add, size: 17, color: Colors.white),
-                          onTap: () => showAppSheet(
-                            context,
-                            LogFoodSheet(
-                              app: app,
-                              controller: controller,
-                              onFoodAdded: (name) {
-                                if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Added $name to today\'s log.')));
-                              },
-                            ),
-                          ),
+                          onTap: () => showAppSheet(context, LogFoodSheet(app: app, controller: controller)),
                         ),
                       ],
                     ),
