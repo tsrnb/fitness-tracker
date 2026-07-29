@@ -461,10 +461,12 @@ class _DayEditorSheetState extends State<_DayEditorSheet> {
   Widget _modeButton(String label, String sub, IconData icon, VoidCallback onTap) => GestureDetector(
         onTap: onTap,
         child: Container(
+          width: double.infinity,
+          height: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
           decoration: BoxDecoration(color: T.surface2, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(12)),
           alignment: Alignment.center,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
+          child: Column(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
             Icon(icon, size: 18, color: T.accent),
             const SizedBox(height: 6),
             Text(label, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: T.text)),
@@ -564,16 +566,18 @@ class _DayEditorSheetState extends State<_DayEditorSheet> {
             ),
           )
         else if (addMode == null)
-          Row(children: [
-            Expanded(child: _modeButton('Custom add', 'One item, exact macros', Icons.edit_note, () => setState(() => addMode = 'custom'))),
-            const SizedBox(width: 8),
-            Expanded(child: _modeButton('Quick add', 'Log a meal, one line each', Icons.bolt, () => setState(() => addMode = 'quick'))),
-          ])
+          IntrinsicHeight(
+            child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Expanded(child: _modeButton('Type to log', "Type a few lines, we'll do the math", Icons.bolt, () => setState(() => addMode = 'quick'))),
+              const SizedBox(width: 8),
+              Expanded(child: _modeButton('Manual entry', 'One item, exact macros', Icons.edit_note, () => setState(() => addMode = 'custom'))),
+            ]),
+          )
         else if (addMode == 'custom')
           AppCard(
             padding: const EdgeInsets.all(12),
             child: Column(children: [
-              _backHeader('Custom add'),
+              _backHeader('Manual entry'),
               TextField(controller: cName, style: TextStyle(color: T.text, fontSize: 14), decoration: _dec('Food name')),
               const SizedBox(height: 8),
               Row(children: [
@@ -595,7 +599,7 @@ class _DayEditorSheetState extends State<_DayEditorSheet> {
             return AppCard(
               padding: const EdgeInsets.all(12),
               child: Column(children: [
-                _backHeader('Quick log a meal'),
+                _backHeader('Type to log'),
                 TextField(
                   controller: logTextCtrl,
                   onChanged: (_) => setState(() {}),

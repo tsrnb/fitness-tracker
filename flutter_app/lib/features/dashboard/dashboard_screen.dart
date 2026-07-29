@@ -6,7 +6,7 @@ import '../../shared/lib/helpers.dart';
 import '../../app/app_state.dart';
 import '../training/program.dart';
 import '../training/splits.dart';
-import '../nutrition/quick_log_sheet.dart';
+import '../nutrition/log_food_sheet.dart';
 import 'rest_day_screen.dart';
 import 'health_sync_banner.dart';
 
@@ -124,7 +124,21 @@ class DashboardScreen extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 10),
-                        ActionPill(label: 'Log food', icon: const Icon(Icons.add, size: 17, color: Colors.white), onTap: () => showAppSheet(context, QuickLogSheet(controller: controller))),
+                        ActionPill(
+                          label: 'Log food',
+                          icon: const Icon(Icons.add, size: 17, color: Colors.white),
+                          onTap: () => showAppSheet(
+                            context,
+                            LogFoodSheet(
+                              app: app,
+                              controller: controller,
+                              onFoodAdded: (name) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Added $name to today\'s log.')));
+                              },
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
