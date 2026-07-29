@@ -1,5 +1,9 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../shared/theme.dart';
+
+const _accentGold = Color(0xFFFFC978);
+const _accentInk = Color(0xFFB8391A);
 
 /// Full-screen, one-shot moment shown while switching between profiles —
 /// `AppController.switchUser` reloads the *entire* AppData (diet, history,
@@ -8,9 +12,9 @@ import '../../shared/theme.dart';
 ///
 /// Deliberately quiet: after trying a fist-bump handoff and a heavily
 /// art-directed "Aurora" version, both got rejected in favor of something
-/// simpler — the incoming profile's avatar fades in once, a thin ring spins
-/// around it while the real data loads, then the ring fades out and the
-/// text resolves to "Ready". No second avatar, no particles, no flash.
+/// simpler — the incoming profile's gradient-filled avatar fades in once, a
+/// gradient sweep spins around it while the real data loads, then it fades
+/// out and the text resolves to "Ready". No second avatar, no particles.
 class SwitchProfileScreen extends StatefulWidget {
   final String toName;
   final Future<void> Function() onSwitch;
@@ -20,9 +24,10 @@ class SwitchProfileScreen extends StatefulWidget {
   State<SwitchProfileScreen> createState() => _SwitchProfileScreenState();
 }
 
-class _SwitchProfileScreenState extends State<SwitchProfileScreen> with SingleTickerProviderStateMixin {
+class _SwitchProfileScreenState extends State<SwitchProfileScreen> with TickerProviderStateMixin {
   late final bool _reduceMotion;
   late final AnimationController _entrance;
+  late final AnimationController _spin;
   bool _settled = false;
 
   @override
@@ -30,6 +35,7 @@ class _SwitchProfileScreenState extends State<SwitchProfileScreen> with SingleTi
     super.initState();
     _reduceMotion = WidgetsBinding.instance.platformDispatcher.accessibilityFeatures.disableAnimations;
     _entrance = AnimationController(vsync: this, duration: Duration(milliseconds: _reduceMotion ? 1 : 320))..forward();
+    _spin = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat();
     _run();
   }
 
@@ -44,6 +50,7 @@ class _SwitchProfileScreenState extends State<SwitchProfileScreen> with SingleTi
     final minDisplay = Duration(milliseconds: _reduceMotion ? 0 : 500);
     if (elapsed < minDisplay) await Future.delayed(minDisplay - elapsed);
     if (!mounted) return;
+    _spin.stop();
     setState(() => _settled = true);
     await Future.delayed(Duration(milliseconds: _reduceMotion ? 150 : 450));
     if (mounted) Navigator.of(context).pop();
@@ -52,6 +59,7 @@ class _SwitchProfileScreenState extends State<SwitchProfileScreen> with SingleTi
   @override
   void dispose() {
     _entrance.dispose();
+    _spin.dispose();
     super.dispose();
   }
 
@@ -71,13 +79,12 @@ class _SwitchProfileScreenState extends State<SwitchProfileScreen> with SingleTi
                 width: 96,
                 height: 96,
                 child: Stack(alignment: Alignment.center, children: [
-                  AnimatedOpacity(
-                    duration: const Duration(milliseconds: 220),
-                    opacity: _settled ? 0 : 1,
-                    child: SizedBox(
-                      width: 96,
-                      height: 96,
-                      child: CircularProgressIndicator(strokeWidth: 2.5, color: T.accent, backgroundColor: T.surface2),
+                  AnimatedBuilder(
+                    animation: _spin,
+                    builder: (context, _) => AnimatedOpacity(
+                      duration: const Duration(milliseconds: 220),
+                      opacity: _settled ? 0 : 1,
+                      child: CustomPaint(size: const Size(96, 96), painter: _GradientRingPainter(_spin.value)),
                     ),
                   ),
                   ScaleTransition(
@@ -87,7 +94,10 @@ class _SwitchProfileScreenState extends State<SwitchProfileScreen> with SingleTi
                       child: Container(
                         width: 76,
                         height: 76,
-                        decoration: const BoxDecoration(shape: BoxShape.circle, color: T.accent),
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [_accentGold, T.hero, _accentInk]),
+                        ),
                         alignment: Alignment.center,
                         child: Text(initial, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 30)),
                       ),
@@ -112,4 +122,32 @@ class _SwitchProfileScreenState extends State<SwitchProfileScreen> with SingleTi
       ),
     );
   }
+}
+
+/// A loading ring with a gradient sweep (bright leading edge, fading tail)
+/// instead of a flat-color `CircularProgressIndicator` — the same idea, a
+/// bit more considered.
+class _GradientRingPainter extends CustomPainter {
+  final double rotation; // 0-1, one full lap
+  _GradientRingPainter(this.rotation);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.width / 2 - 1.5;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    final paint = Paint()
+      ..shader = SweepGradient(
+        colors: const [Colors.transparent, _accentGold, T.hero, _accentInk, Colors.transparent],
+        stops: const [0, 0.25, 0.6, 0.9, 1],
+        transform: GradientRotation(rotation * 2 * math.pi),
+      ).createShader(rect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(rect, 0, 2 * math.pi, false, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _GradientRingPainter old) => old.rotation != rotation;
 }
