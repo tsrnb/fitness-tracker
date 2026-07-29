@@ -246,7 +246,7 @@ class AppController extends StateNotifier<AppState> {
     await loadUser(id, simpleUsers);
   }
 
-  void switchUser(int id) => loadUser(id);
+  Future<void> switchUser(int id) => loadUser(id);
 
   void beginCreate() => state = state.copyWith(view: AppView.onboarding);
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../shared/theme.dart';
 import '../../shared/widgets/atoms.dart';
 import '../../app/app_state.dart';
+import 'switch_profile_screen.dart';
 
 /// Profile list page — switch-on-tap with active-highlighting, and an "Add
 /// profile" action. Switching user or starting a new profile changes what's
@@ -11,6 +12,22 @@ class ProfilesPage extends StatelessWidget {
   final AppState app;
   final AppController controller;
   const ProfilesPage({super.key, required this.app, required this.controller});
+
+  Future<void> _switchTo(BuildContext context, int id, String name) async {
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    // The switch animation runs on top of Settings (covering it), does the
+    // actual reload itself, then pops itself once it's done — only then do
+    // we pop Settings too, landing on the dashboard with the new profile
+    // already loaded instead of snapping to it mid-fetch.
+    await rootNav.push(PageRouteBuilder(
+      opaque: true,
+      transitionDuration: const Duration(milliseconds: 280),
+      reverseTransitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (_, __, ___) => SwitchProfileScreen(fromName: app.user!.name, toName: name, onSwitch: () => controller.switchUser(id)),
+      transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+    ));
+    if (context.mounted) rootNav.pop();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,10 +43,7 @@ class ProfilesPage extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: GestureDetector(
-                onTap: () {
-                  Navigator.of(context, rootNavigator: true).pop();
-                  controller.switchUser(u.id);
-                },
+                onTap: active ? null : () => _switchTo(context, u.id, u.name),
                 child: Container(
                   padding: const EdgeInsets.fromLTRB(8, 8, 14, 8),
                   decoration: BoxDecoration(
