@@ -23,7 +23,7 @@ class ProfilesPage extends StatelessWidget {
       opaque: true,
       transitionDuration: const Duration(milliseconds: 280),
       reverseTransitionDuration: const Duration(milliseconds: 220),
-      pageBuilder: (_, __, ___) => SwitchProfileScreen(fromName: app.user!.name, toName: name, onSwitch: () => controller.switchUser(id)),
+      pageBuilder: (_, __, ___) => SwitchProfileScreen(toName: name, onSwitch: () => controller.switchUser(id)),
       transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
     ));
     if (context.mounted) rootNav.pop();
