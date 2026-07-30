@@ -31,7 +31,7 @@ class AiFoodParseResult {
   const AiFoodParseResult({required this.items, this.reply});
 }
 
-/// Thrown when `OPENAI_API_KEY` wasn't provided at build time.
+/// Thrown when `AI_PROXY_URL`/`AI_PROXY_CLIENT_KEY` weren't provided at build time.
 class AiConfigException implements Exception {}
 
 /// Thrown for anything else that goes wrong — network, bad response shape,
@@ -42,47 +42,39 @@ class AiParseException implements Exception {
   AiParseException(this.message);
 }
 
-/// Talks directly to the OpenAI Chat Completions API from the client —
-/// deliberate for this app (a 2-person personal project with no backend),
-/// not a pattern to copy for anything shared more broadly: the key is
-/// baked into the compiled web bundle via --dart-define-from-file, visible
-/// to anyone who has the deployed URL and opens dev tools.
+/// Calls a small Cloudflare Worker (`cf-worker/`) instead of OpenAI directly.
+/// A key baked into this compiled web bundle would be scraped from the
+/// public gh-pages site and auto-revoked by OpenAI's own leaked-key
+/// scanning — that happened twice before this proxy existed. The real
+/// OPENAI_API_KEY now only ever lives in Cloudflare (`wrangler secret put`).
+/// `AI_PROXY_CLIENT_KEY` below is *not* that key — it's a low-value shared
+/// secret whose only job is stopping randoms who find this URL from
+/// spending your OpenAI credits; it still ends up in the compiled JS same
+/// as before, but there's nothing here for a scanner to find and kill.
 class OpenAiFoodService {
-  static const _apiKey = String.fromEnvironment('OPENAI_API_KEY');
-  static bool get isConfigured => _apiKey.isNotEmpty;
+  static const _proxyBase = String.fromEnvironment('AI_PROXY_URL');
+  static const _clientKey = String.fromEnvironment('AI_PROXY_CLIENT_KEY');
+  static bool get isConfigured => _proxyBase.isNotEmpty && _clientKey.isNotEmpty;
 
-  // Cached across instances so re-opening the Log Food sheet doesn't re-ping
-  // OpenAI every time — a stale-for-a-bit "available" is a fine tradeoff for
-  // not hammering the API just to decide whether to show a button.
-  static bool? _lastPingOk;
-  static DateTime? _lastPingAt;
-  static const _pingTtl = Duration(minutes: 5);
+  static Map<String, String> get _headers => {
+        'X-Client-Key': _clientKey,
+        'Content-Type': 'application/json',
+      };
 
-  /// Cheap reachability + auth check, so callers (the Log Food sheet's Ask
-  /// AI card) can hide the entry point instead of offering a path that's
-  /// going to fail. Hits `GET /v1/models` — free, no completion tokens —
-  /// rather than a real chat request. Browsers can't see *why* a cross-origin
-  /// request failed (see `_describeError`'s doc comment), so this only ever
-  /// answers "did it work," never "why not."
+  /// Reachability check for the chat screen to run on open — hits the
+  /// proxy's `/health` route (which itself does a free `GET /v1/models`
+  /// against OpenAI) rather than spending a real chat completion just to
+  /// find out if the service is up.
   Future<bool> ping() async {
     if (!isConfigured) return false;
-    final cachedAt = _lastPingAt;
-    if (cachedAt != null && DateTime.now().difference(cachedAt) < _pingTtl) {
-      return _lastPingOk!;
-    }
-    bool ok;
     try {
-      final res = await http.get(
-        Uri.parse('https://api.openai.com/v1/models'),
-        headers: {'Authorization': 'Bearer $_apiKey'},
-      ).timeout(const Duration(seconds: 8));
-      ok = res.statusCode == 200;
+      final res = await http.get(Uri.parse('$_proxyBase/health'), headers: _headers).timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return false;
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      return body['ok'] == true;
     } catch (_) {
-      ok = false;
+      return false;
     }
-    _lastPingOk = ok;
-    _lastPingAt = DateTime.now();
-    return ok;
   }
 
   static const _systemPrompt = '''
@@ -106,11 +98,8 @@ All macro numbers are grams except kcal, all rounded to whole numbers. If the me
     try {
       res = await http
           .post(
-            Uri.parse('https://api.openai.com/v1/chat/completions'),
-            headers: {
-              'Authorization': 'Bearer $_apiKey',
-              'Content-Type': 'application/json',
-            },
+            Uri.parse('$_proxyBase/chat'),
+            headers: _headers,
             body: jsonEncode({
               'model': 'gpt-4o-mini',
               'temperature': 0.3,
@@ -175,11 +164,12 @@ All macro numbers are grams except kcal, all rounded to whole numbers. If the me
     return AiFoodParseResult(items: items, reply: parsed['reply'] as String?);
   }
 
-  /// Turns an OpenAI error response into a message that tells the user what
-  /// to actually do about it, rather than just surfacing a status code —
-  /// `insufficient_quota` and `rate_limit_exceeded` both come back as HTTP
-  /// 429, but they mean very different things (no billing set up, vs. sending
-  /// requests too fast), so the status code alone isn't enough.
+  /// Turns an error response into a message that tells the user what to
+  /// actually do about it. Two sources land here: the proxy's own 401
+  /// ("unauthorized" — `AI_PROXY_CLIENT_KEY` mismatch) and OpenAI's errors
+  /// passed through verbatim by the proxy (`insufficient_quota` and
+  /// `rate_limit_exceeded` both come back as HTTP 429 but mean very
+  /// different things, so the status code alone isn't enough).
   String _describeError(http.Response res) {
     Map<String, dynamic>? error;
     try {
@@ -190,8 +180,11 @@ All macro numbers are grams except kcal, all rounded to whole numbers. If the me
     final code = error?['code'] as String?;
     final apiMessage = error?['message'] as String?;
 
+    if (apiMessage == 'unauthorized' && code == null) {
+      return "This app's proxy credentials look wrong — check AI_PROXY_CLIENT_KEY in secrets.json.";
+    }
     if (res.statusCode == 401 || code == 'invalid_api_key') {
-      return "That API key looks invalid — check secrets.json.";
+      return "The proxy's OpenAI key looks invalid — check the Cloudflare Worker's OPENAI_API_KEY secret.";
     }
     if (code == 'insufficient_quota') {
       return "This OpenAI account has no billing set up (or hit its usage cap) — add a payment method at platform.openai.com/settings/organization/billing, then try again.";

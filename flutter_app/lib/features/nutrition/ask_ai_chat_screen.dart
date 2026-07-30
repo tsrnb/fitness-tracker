@@ -79,6 +79,23 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
     final burned = ((widget.app.data.activity[today] as Map?)?['kcal'] as num?) ?? 0;
     _kcalGoal = ((st['calorieGoal'] as num?) ?? 2000) + burned;
     _proteinGoal = (st['proteinGoal'] as num?) ?? 150;
+    _checkAvailability();
+  }
+
+  // Pinged here rather than gating the Log Food sheet's entry card — a
+  // ping stale by even a few seconds would show a card that's actually
+  // dead, so it's more honest to always offer the card and only find out
+  // once the user has committed to it, explain why, and hand them back.
+  Future<void> _checkAvailability() async {
+    final ok = await _service.ping();
+    if (!mounted || ok) return;
+    setState(() {
+      _entries.add(_AssistantError("Ask AI isn't reachable right now — taking you back so you can log it yourself."));
+      _showChips = false;
+    });
+    _scrollToEnd();
+    await Future.delayed(const Duration(milliseconds: 1800));
+    if (mounted) Navigator.of(context).maybePop();
   }
 
   @override

@@ -8,11 +8,13 @@ WORKTREE_DIR="$REPO_ROOT/.gh-pages-worktree"
 BUILD_WEB_DIR="$REPO_ROOT/flutter_app/build/web"
 
 cd "$REPO_ROOT/flutter_app"
-# secrets.json (git-ignored, see secrets.example.json) holds OPENAI_API_KEY
-# for the "Ask AI" food-logging feature — --dart-define-from-file keeps it
-# out of shell history and out of the repo, at the cost of it still ending
-# up readable in the compiled web bundle, which is why this app is only
-# ever shared with people who already have the link, not linked publicly.
+# secrets.json (git-ignored, see secrets.example.json) holds AI_PROXY_URL
+# and AI_PROXY_CLIENT_KEY for the "Ask AI" food-logging feature — these
+# point at the Cloudflare Worker in cf-worker/, which is the only thing
+# that ever holds the real OPENAI_API_KEY. A raw OpenAI key baked into this
+# bundle would be scraped from the public gh-pages site and auto-revoked by
+# OpenAI's own leaked-key scanning (it happened twice), so it can never live
+# here — see cf-worker/README.md to deploy the proxy.
 if [ -f secrets.json ]; then
   flutter build web --base-href /fitness-tracker/ --dart-define-from-file=secrets.json
 else
