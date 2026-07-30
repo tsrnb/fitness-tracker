@@ -745,7 +745,7 @@ class NumIn extends StatelessWidget {
 Future<R?> showAppSheet<R>(BuildContext context, Widget child) {
   return showModalBottomSheet<R>(
     context: context,
-    backgroundColor: T.bg,
+    backgroundColor: T.surface,
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(T.rXL))),
     builder: (ctx) {

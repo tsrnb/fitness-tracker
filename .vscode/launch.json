@@ -9,21 +9,24 @@
             "name": "flutter_app",
             "cwd": "flutter_app",
             "request": "launch",
-            "type": "dart"
+            "type": "dart",
+            "args": ["--dart-define-from-file=secrets.json"]
         },
         {
             "name": "flutter_app (profile mode)",
             "cwd": "flutter_app",
             "request": "launch",
             "type": "dart",
-            "flutterMode": "profile"
+            "flutterMode": "profile",
+            "args": ["--dart-define-from-file=secrets.json"]
         },
         {
             "name": "flutter_app (release mode)",
             "cwd": "flutter_app",
             "request": "launch",
             "type": "dart",
-            "flutterMode": "release"
+            "flutterMode": "release",
+            "args": ["--dart-define-from-file=secrets.json"]
         }
     ]
 }
