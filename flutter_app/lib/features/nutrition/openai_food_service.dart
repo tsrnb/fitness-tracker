@@ -51,6 +51,40 @@ class OpenAiFoodService {
   static const _apiKey = String.fromEnvironment('OPENAI_API_KEY');
   static bool get isConfigured => _apiKey.isNotEmpty;
 
+  // Cached across instances so re-opening the Log Food sheet doesn't re-ping
+  // OpenAI every time — a stale-for-a-bit "available" is a fine tradeoff for
+  // not hammering the API just to decide whether to show a button.
+  static bool? _lastPingOk;
+  static DateTime? _lastPingAt;
+  static const _pingTtl = Duration(minutes: 5);
+
+  /// Cheap reachability + auth check, so callers (the Log Food sheet's Ask
+  /// AI card) can hide the entry point instead of offering a path that's
+  /// going to fail. Hits `GET /v1/models` — free, no completion tokens —
+  /// rather than a real chat request. Browsers can't see *why* a cross-origin
+  /// request failed (see `_describeError`'s doc comment), so this only ever
+  /// answers "did it work," never "why not."
+  Future<bool> ping() async {
+    if (!isConfigured) return false;
+    final cachedAt = _lastPingAt;
+    if (cachedAt != null && DateTime.now().difference(cachedAt) < _pingTtl) {
+      return _lastPingOk!;
+    }
+    bool ok;
+    try {
+      final res = await http.get(
+        Uri.parse('https://api.openai.com/v1/models'),
+        headers: {'Authorization': 'Bearer $_apiKey'},
+      ).timeout(const Duration(seconds: 8));
+      ok = res.statusCode == 200;
+    } catch (_) {
+      ok = false;
+    }
+    _lastPingOk = ok;
+    _lastPingAt = DateTime.now();
+    return ok;
+  }
+
   static const _systemPrompt = '''
 You are a nutrition estimator embedded in a personal fitness-tracking app. The user will describe what they ate in casual language — often Indian home-cooked meals (rotis, dal, sabzi, curd, rice, and similar) but not exclusively. Break their message into distinct food items and estimate calories and macros for each, using realistic home-cooking portions when no quantity is given (assume one normal serving).
 

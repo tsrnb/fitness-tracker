@@ -5,6 +5,7 @@ import '../../shared/widgets/atoms.dart';
 import '../../app/app_state.dart';
 import 'ai_gradient.dart';
 import 'ask_ai_chat_screen.dart';
+import 'openai_food_service.dart';
 import 'food_db.dart';
 import 'parse_meal_lines.dart';
 import 'meal_log.dart';
@@ -111,6 +112,18 @@ class _LogFoodSheetState extends State<LogFoodSheet> {
   final cF = TextEditingController();
   final cFi = TextEditingController();
 
+  // null while checking (card stays hidden to avoid a flash-then-vanish),
+  // then true/false — the Ask AI card only ever shows once we know it'll work.
+  bool? _aiAvailable;
+
+  @override
+  void initState() {
+    super.initState();
+    OpenAiFoodService().ping().then((ok) {
+      if (mounted) setState(() => _aiAvailable = ok);
+    });
+  }
+
   @override
   void dispose() {
     logTextCtrl.dispose();
@@ -203,79 +216,81 @@ class _LogFoodSheetState extends State<LogFoodSheet> {
         if (mode == null) ...[
           Text('Log food', style: Type.h2),
           const SizedBox(height: 4),
-          Text('Fastest: just describe it.', style: Type.caption),
+          Text(_aiAvailable == true ? 'Fastest: just describe it.' : 'Add what you ate.', style: Type.caption),
           const SizedBox(height: 14),
-          GestureDetector(
-            onTap: () {
-              final nav = Navigator.of(context);
-              nav.pop();
-              nav.push(MaterialPageRoute(builder: (_) => AskAiChatScreen(app: widget.app, controller: widget.controller)));
-            },
-            child: AiGradient(
-              builder: (context, gradient) => Container(
-                padding: const EdgeInsets.all(1.6),
-                decoration: BoxDecoration(gradient: gradient, borderRadius: BorderRadius.circular(20)),
-                child: AiGradientWash(
-                  base: const Color(0xFF17161D),
-                  borderRadius: BorderRadius.circular(18.5),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [
+          if (_aiAvailable == true) ...[
+            GestureDetector(
+              onTap: () {
+                final nav = Navigator.of(context);
+                nav.pop();
+                nav.push(MaterialPageRoute(builder: (_) => AskAiChatScreen(app: widget.app, controller: widget.controller)));
+              },
+              child: AiGradient(
+                builder: (context, gradient) => Container(
+                  padding: const EdgeInsets.all(1.6),
+                  decoration: BoxDecoration(gradient: gradient, borderRadius: BorderRadius.circular(20)),
+                  child: AiGradientWash(
+                    base: const Color(0xFF17161D),
+                    borderRadius: BorderRadius.circular(18.5),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(shape: BoxShape.circle, gradient: gradient),
+                            alignment: Alignment.center,
+                            child: const Icon(Icons.auto_awesome, size: 16, color: Colors.white),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              ShaderMask(
+                                shaderCallback: (rect) => gradient.createShader(rect),
+                                child: const Text('Ask AI', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: Colors.white)),
+                              ),
+                              Text('Describe your meal in plain words', style: TextStyle(fontSize: 10.5, color: T.muted)),
+                            ]),
+                          ),
+                        ]),
+                        const SizedBox(height: 12),
                         Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(shape: BoxShape.circle, gradient: gradient),
-                          alignment: Alignment.center,
-                          child: const Icon(Icons.auto_awesome, size: 16, color: Colors.white),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(color: T.surface2, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(12)),
+                          child: Text(
+                            '"2 rotis, dal, and a small bowl of curd" → 490 kcal · 22g protein',
+                            style: TextStyle(fontSize: 11.5, color: T.text, height: 1.5, fontStyle: FontStyle.italic),
+                          ),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            ShaderMask(
-                              shaderCallback: (rect) => gradient.createShader(rect),
-                              child: const Text('Ask AI', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: Colors.white)),
-                            ),
-                            Text('Describe your meal in plain words', style: TextStyle(fontSize: 10.5, color: T.muted)),
-                          ]),
-                        ),
+                        const SizedBox(height: 12),
+                        Row(children: [
+                          Expanded(child: Text('Fits it straight into today\'s log', style: TextStyle(fontSize: 11, color: T.faint))),
+                          Container(
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), shape: BoxShape.circle),
+                            alignment: Alignment.center,
+                            child: const Icon(Icons.arrow_forward, size: 13, color: Colors.white),
+                          ),
+                        ]),
                       ]),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(color: T.surface2, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(12)),
-                        child: Text(
-                          '"2 rotis, dal, and a small bowl of curd" → 490 kcal · 22g protein',
-                          style: TextStyle(fontSize: 11.5, color: T.text, height: 1.5, fontStyle: FontStyle.italic),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(children: [
-                        Expanded(child: Text('Fits it straight into today\'s log', style: TextStyle(fontSize: 11, color: T.faint))),
-                        Container(
-                          width: 26,
-                          height: 26,
-                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), shape: BoxShape.circle),
-                          alignment: Alignment.center,
-                          child: const Icon(Icons.arrow_forward, size: 13, color: Colors.white),
-                        ),
-                      ]),
-                    ]),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 14),
-          Row(children: [
-            Expanded(child: Divider(color: T.line)),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Text('OR LOG IT YOURSELF', style: mono(fontSize: 9.5, color: T.faint).copyWith(letterSpacing: 0.8)),
-            ),
-            Expanded(child: Divider(color: T.line)),
-          ]),
-          const SizedBox(height: 12),
+            const SizedBox(height: 14),
+            Row(children: [
+              Expanded(child: Divider(color: T.line)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Text('OR LOG IT YOURSELF', style: mono(fontSize: 9.5, color: T.faint).copyWith(letterSpacing: 0.8)),
+              ),
+              Expanded(child: Divider(color: T.line)),
+            ]),
+            const SizedBox(height: 12),
+          ],
           IntrinsicHeight(
             child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Expanded(child: _modeButton('Type to log', "Type a few lines, we'll do the math", Icons.bolt, () => setState(() => mode = 'quick'))),
