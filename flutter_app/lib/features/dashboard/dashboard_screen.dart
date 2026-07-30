@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../../shared/theme.dart';
 import '../../shared/widgets/atoms.dart';
+import '../../shared/widgets/ai_shimmer_once.dart';
 import '../../shared/lib/helpers.dart';
 import '../../app/app_state.dart';
 import '../training/program.dart';
@@ -124,10 +125,13 @@ class DashboardScreen extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 10),
-                        ActionPill(
-                          label: 'Log food',
-                          icon: const Icon(Icons.add, size: 17, color: Colors.white),
-                          onTap: () => showAppSheet(context, LogFoodSheet(app: app, controller: controller)),
+                        AiShimmerOnce(
+                          borderRadius: BorderRadius.circular(T.pill),
+                          child: ActionPill(
+                            label: 'Log food',
+                            icon: const Icon(Icons.add, size: 17, color: Colors.white),
+                            onTap: () => showAppSheet(context, LogFoodSheet(app: app, controller: controller)),
+                          ),
                         ),
                       ],
                     ),

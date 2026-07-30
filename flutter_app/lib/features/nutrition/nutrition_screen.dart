@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../shared/theme.dart';
 import '../../shared/widgets/atoms.dart';
+import '../../shared/widgets/ai_shimmer_once.dart';
 import '../../shared/lib/helpers.dart';
 import '../../app/app_state.dart';
 import 'log_food_sheet.dart';
@@ -178,13 +179,16 @@ class _NutritionScreenState extends State<NutritionScreen> {
         ),
         Padding(
           padding: const EdgeInsets.only(bottom: 18),
-          child: PrimaryButton(
-            onTap: _openLogFoodSheet,
-            child: const Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.add, size: 18),
-              SizedBox(width: 8),
-              Text('Log food'),
-            ]),
+          child: AiShimmerOnce(
+            borderRadius: BorderRadius.circular(T.pill),
+            child: PrimaryButton(
+              onTap: _openLogFoodSheet,
+              child: const Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.add, size: 18),
+                SizedBox(width: 8),
+                Text('Log food'),
+              ]),
+            ),
           ),
         ),
         const Eyebrow("Today's meals"),
