@@ -57,6 +57,44 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
   bool _showChips = true;
   bool _busy = false;
 
+  // Prior user/assistant turns replayed to the model on each call so a
+  // follow-up like "add 10g protein to that" resolves against the items
+  // just shown instead of arriving with no context. Only successful,
+  // food-containing exchanges are kept — errors and off-topic replies add
+  // nothing worth chaining. Capped to the last few exchanges since only
+  // recent context matters here and it keeps the request small.
+  final List<Map<String, String>> _history = [];
+  static const _maxHistoryMessages = 12;
+
+  // Seeded from persisted per-user data and kept locally in sync so a fact
+  // remembered mid-session is usable by the next message in *this* session
+  // too — `widget.app` is a one-time snapshot from when this screen was
+  // pushed, it won't pick up controller.update() on its own.
+  late Map<String, dynamic> _knownFacts;
+
+  Future<void> _rememberFacts(List<AiFoodItem> facts) async {
+    final next = Map<String, dynamic>.from(_knownFacts);
+    for (final f in facts) {
+      next[f.name.toLowerCase()] = {
+        'kcal': f.kcal,
+        'protein': f.protein,
+        'carb': f.carb,
+        'fat': f.fat,
+        'fiber': f.fiber,
+      };
+    }
+    _knownFacts = next;
+    await widget.controller.update('aiFoodMemory', (_) => next);
+  }
+
+  void _pushHistory(String userText, String assistantRawContent) {
+    _history.add({'role': 'user', 'content': userText});
+    _history.add({'role': 'assistant', 'content': assistantRawContent});
+    if (_history.length > _maxHistoryMessages) {
+      _history.removeRange(0, _history.length - _maxHistoryMessages);
+    }
+  }
+
   // Running total of what's been added to the log *this session*, so each
   // new suggestion's "fits your day" numbers account for earlier ones
   // without needing to re-read from the (static) app snapshot.
@@ -71,6 +109,7 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
   @override
   void initState() {
     super.initState();
+    _knownFacts = Map<String, dynamic>.from(widget.app.data.aiFoodMemory);
     final st = widget.app.data.settings;
     final today = todayStr(st);
     final meals = List<Map<String, dynamic>>.from(widget.app.data.diet[today] ?? []);
@@ -125,8 +164,10 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
     _scrollToEnd();
 
     try {
-      final result = await _service.parseMeal(msg);
+      final result = await _service.parseMeal(msg, history: _history, knownFacts: _knownFacts);
       if (!mounted) return;
+      _pushHistory(msg, result.rawContent);
+      if (result.remember.isNotEmpty) await _rememberFacts(result.remember);
       setState(() {
         _entries.removeWhere((e) => e is _AssistantTyping);
         if (result.reply != null && result.reply!.isNotEmpty) _entries.add(_AssistantText(result.reply!));

@@ -28,7 +28,17 @@ class AiFoodItem {
 class AiFoodParseResult {
   final String? reply;
   final List<AiFoodItem> items;
-  const AiFoodParseResult({required this.items, this.reply});
+  /// Foods the user stated a standing/corrected macro value for (e.g.
+  /// "yogurt is 101kcal, 11g protein") rather than just a one-off portion —
+  /// the caller persists these so they're known in future chat sessions,
+  /// unlike `history` which is only replayed within the current one.
+  final List<AiFoodItem> remember;
+  /// The model's raw JSON response text, kept so the caller can replay it
+  /// back as an assistant turn in `history` on the next call — that's what
+  /// lets a follow-up like "add 10g protein to that" resolve against the
+  /// items just shown instead of landing with no context.
+  final String rawContent;
+  const AiFoodParseResult({required this.items, required this.rawContent, this.reply, this.remember = const []});
 }
 
 /// Thrown when `AI_PROXY_URL`/`AI_PROXY_CLIENT_KEY` weren't provided at build time.
@@ -85,14 +95,34 @@ Respond with ONLY valid JSON, no markdown fences, no commentary outside the JSON
   "reply": "one short, friendly sentence introducing the breakdown, referencing what they described",
   "items": [
     {"name": "string", "emoji": "single emoji that best represents this food", "kcal": number, "protein": number, "carb": number, "fat": number, "fiber": number}
+  ],
+  "remember": [
+    {"name": "string", "emoji": "single emoji", "kcal": number, "protein": number, "carb": number, "fat": number, "fiber": number}
   ]
 }
 
 All macro numbers are grams except kcal, all rounded to whole numbers. If the message doesn't describe any food (e.g. a greeting or unrelated question), return an empty items array and a reply that gently asks them to describe a meal instead.
+
+Earlier turns in this conversation may be included for context. If the user's new message is a correction or addition referring to what was just discussed (e.g. "add 10g protein to that", "make it 2 rotis instead", "actually no butter") rather than a new standalone meal, apply the change to the most recent item breakdown and return the full corrected set of items — not just the delta.
+
+A "Known food facts" line may be included above the conversation listing standing values the user has already taught you for specific foods in past sessions — use those values whenever the user mentions that food again instead of re-estimating.
+
+The "remember" array is separate from "items": include a food in it only when the user is stating or correcting a fixed, reusable value for that food itself (e.g. "yogurt is always 101kcal and 11g protein", "actually peanut butter is 100kcal not 90"), not when they're just describing what they ate today. Most replies will have an empty remember array.
 ''';
 
-  Future<AiFoodParseResult> parseMeal(String description) async {
+  Future<AiFoodParseResult> parseMeal(
+    String description, {
+    List<Map<String, String>> history = const [],
+    Map<String, dynamic> knownFacts = const {},
+  }) async {
     if (!isConfigured) throw AiConfigException();
+
+    final messages = <Map<String, String>>[
+      {'role': 'system', 'content': _systemPrompt},
+      if (knownFacts.isNotEmpty) {'role': 'system', 'content': _describeKnownFacts(knownFacts)},
+      ...history,
+      {'role': 'user', 'content': description},
+    ];
 
     final http.Response res;
     try {
@@ -104,10 +134,7 @@ All macro numbers are grams except kcal, all rounded to whole numbers. If the me
               'model': 'gpt-4o-mini',
               'temperature': 0.3,
               'response_format': {'type': 'json_object'},
-              'messages': [
-                {'role': 'system', 'content': _systemPrompt},
-                {'role': 'user', 'content': description},
-              ],
+              'messages': messages,
             }),
           )
           .timeout(const Duration(seconds: 30));
@@ -148,8 +175,42 @@ All macro numbers are grams except kcal, all rounded to whole numbers. If the me
       throw AiParseException((parsed['reply'] as String?) ?? "I couldn't find any food in that — try describing a meal.");
     }
 
-    final items = rawItems.map((raw) {
-      final m = raw as Map<String, dynamic>;
+    final items = _applyKnownFacts(_parseItems(rawItems), knownFacts);
+    final remember = _parseItems(parsed['remember'] as List?);
+
+    return AiFoodParseResult(items: items, remember: remember, reply: parsed['reply'] as String?, rawContent: content);
+  }
+
+  /// The "Known food facts" system message only *asks* the model to reuse
+  /// remembered values — it's not reliable enough on its own (small models
+  /// still re-estimate from scratch a lot of the time, especially once a
+  /// stale figure is also sitting in the replayed history). This forces an
+  /// exact-name match to the stored per-serving values in code, so a
+  /// remembered fact actually sticks instead of being a suggestion the model
+  /// can ignore. Trade-off: it overrides flatly, so if the model scaled an
+  /// item for a stated quantity (e.g. "2 servings of yogurt"), the override
+  /// clobbers that scaling back to the single-serving figure.
+  static List<AiFoodItem> _applyKnownFacts(List<AiFoodItem> items, Map<String, dynamic> knownFacts) {
+    if (knownFacts.isEmpty) return items;
+    return items.map((it) {
+      final fact = knownFacts[it.name.toLowerCase()] as Map?;
+      if (fact == null) return it;
+      return AiFoodItem(
+        name: it.name,
+        emoji: it.emoji,
+        kcal: ((fact['kcal'] as num?) ?? it.kcal).round(),
+        protein: ((fact['protein'] as num?) ?? it.protein).round(),
+        carb: ((fact['carb'] as num?) ?? it.carb).round(),
+        fat: ((fact['fat'] as num?) ?? it.fat).round(),
+        fiber: ((fact['fiber'] as num?) ?? it.fiber).round(),
+      );
+    }).toList();
+  }
+
+  static List<AiFoodItem> _parseItems(List? raw) {
+    if (raw == null) return const [];
+    return raw.map((r) {
+      final m = r as Map<String, dynamic>;
       return AiFoodItem(
         name: (m['name'] as String?)?.trim().isNotEmpty == true ? (m['name'] as String).trim() : 'Item',
         emoji: (m['emoji'] as String?) ?? '🍽️',
@@ -160,8 +221,17 @@ All macro numbers are grams except kcal, all rounded to whole numbers. If the me
         fiber: ((m['fiber'] as num?) ?? 0).round(),
       );
     }).toList();
+  }
 
-    return AiFoodParseResult(items: items, reply: parsed['reply'] as String?);
+  /// Renders persisted per-user food facts (see `AppData.aiFoodMemory`) into
+  /// a system message so they're available on the very first message of a
+  /// brand-new chat session, not just once mentioned within one.
+  static String _describeKnownFacts(Map<String, dynamic> facts) {
+    final lines = facts.entries.map((e) {
+      final v = e.value as Map;
+      return '- ${e.key}: ${v['kcal']}kcal, ${v['protein']}g protein, ${v['carb']}g carb, ${v['fat']}g fat, ${v['fiber']}g fiber (per serving)';
+    });
+    return 'Known food facts from previous sessions:\n${lines.join('\n')}';
   }
 
   /// Turns an error response into a message that tells the user what to

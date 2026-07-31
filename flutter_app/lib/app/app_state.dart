@@ -18,6 +18,11 @@ class AppData {
   final Map<String, dynamic> activity; // date -> {steps,kcal,min}
   final List<dynamic> photos;
   final Map<String, dynamic>? plan;
+  // foodName (lowercased) -> {kcal,protein,carb,fat,fiber} — standing facts
+  // the user has told the Ask AI chat about a food (e.g. "yogurt is 101kcal,
+  // 11g protein"), persisted per-user so they carry across chat sessions and
+  // app restarts, unlike the rest of a chat's conversation context.
+  final Map<String, dynamic> aiFoodMemory;
 
   const AppData({
     this.settings = const {},
@@ -29,6 +34,7 @@ class AppData {
     this.activity = const {},
     this.photos = const [],
     this.plan,
+    this.aiFoodMemory = const {},
   });
 
   static const empty = AppData();
@@ -43,6 +49,7 @@ class AppData {
         activity: Map<String, dynamic>.from(m['activity'] ?? {}),
         photos: List<dynamic>.from(m['photos'] ?? []),
         plan: m['plan'] != null ? Map<String, dynamic>.from(m['plan']) : null,
+        aiFoodMemory: Map<String, dynamic>.from(m['aiFoodMemory'] ?? {}),
       );
 
   AppData copyWith({
@@ -55,6 +62,7 @@ class AppData {
     Map<String, dynamic>? activity,
     List<dynamic>? photos,
     Object? plan = _unset,
+    Map<String, dynamic>? aiFoodMemory,
   }) {
     return AppData(
       settings: settings ?? this.settings,
@@ -66,6 +74,7 @@ class AppData {
       activity: activity ?? this.activity,
       photos: photos ?? this.photos,
       plan: identical(plan, _unset) ? this.plan : plan as Map<String, dynamic>?,
+      aiFoodMemory: aiFoodMemory ?? this.aiFoodMemory,
     );
   }
 
@@ -89,6 +98,8 @@ class AppData {
         return photos;
       case 'plan':
         return plan;
+      case 'aiFoodMemory':
+        return aiFoodMemory;
     }
     return null;
   }
@@ -210,6 +221,7 @@ class AppController extends StateNotifier<AppState> {
       water: key == 'water' ? Map<String, dynamic>.from(next) : null,
       activity: key == 'activity' ? Map<String, dynamic>.from(next) : null,
       plan: key == 'plan' ? (next == null ? null : Map<String, dynamic>.from(next)) : _unset,
+      aiFoodMemory: key == 'aiFoodMemory' ? Map<String, dynamic>.from(next) : null,
     ));
   }
 
