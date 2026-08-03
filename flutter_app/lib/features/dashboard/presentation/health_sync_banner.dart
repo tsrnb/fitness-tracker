@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../shared/theme.dart';
-import '../../shared/widgets/atoms.dart';
-import '../../shared/lib/helpers.dart';
-import '../../app/app_state.dart';
+import '../../../shared/theme.dart';
+import '../../../shared/widgets/atoms.dart';
+import '../../../shared/lib/helpers.dart';
+import '../../../app/app_state.dart';
 
 /// Prominent, always-visible Health sync status — deliberately placed at the
 /// very top of the home screen (not tucked into the activity card) since

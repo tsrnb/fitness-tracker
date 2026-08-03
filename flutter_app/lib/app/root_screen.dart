@@ -6,7 +6,7 @@ import '../shared/widgets/animated_indexed_stack.dart';
 import '../shared/widgets/pressable_scale.dart';
 import '../features/onboarding/onboarding_screen.dart';
 import '../features/profile/profile_picker_screen.dart';
-import '../features/dashboard/dashboard_screen.dart';
+import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/training/presentation/train_screen.dart';
 import '../features/exercises/library_screen.dart';
 import '../features/exercises/exercise_detail_sheet.dart';

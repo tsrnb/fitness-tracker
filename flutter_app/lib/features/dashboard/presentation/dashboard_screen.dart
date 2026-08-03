@@ -1,15 +1,13 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import '../../shared/theme.dart';
-import '../../shared/widgets/atoms.dart';
-import '../../shared/widgets/ai_shimmer_once.dart';
-import '../../shared/lib/helpers.dart';
-import '../../shared/lib/macro_totals.dart';
-import '../../app/app_state.dart';
-import '../plan/data/plan_options.dart';
-import '../training/domain/program.dart';
-import '../training/data/training_splits_data.dart';
-import '../nutrition/presentation/log_food_sheet.dart';
+import '../../../shared/theme.dart';
+import '../../../shared/widgets/atoms.dart';
+import '../../../shared/widgets/ai_shimmer_once.dart';
+import '../../../shared/lib/helpers.dart';
+import '../../../app/app_state.dart';
+import '../../plan/data/plan_options.dart';
+import '../data/dashboard_stats.dart';
+import '../../nutrition/presentation/log_food_sheet.dart';
 import 'rest_day_screen.dart';
 import 'health_sync_banner.dart';
 
@@ -25,35 +23,27 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final st = app.data.settings;
     final today = todayStr(st);
-    final jsDow = DateTime.now().weekday % 7; // JS getDay(): 0=Sun..6=Sat
-    final split = activeSplit(st);
-    final todayDay = scheduleFromSettings(st, split)[jsDow];
-    final exercises = todayDay != null ? split.program[todayDay]!.items : <ProgramItem>[];
+    final snap = computeDashboardSnapshot(app);
+    final todayDay = snap.todayDay;
+    final exercises = snap.exercises;
     bool loggedToday(String name) => isLoggedToday(app.data.history, name, today);
 
-    final meals = List<Map<String, dynamic>>.from(app.data.diet[today] ?? []);
-    final todayTotals = sumMacros(meals);
-    final kcalToday = todayTotals.kcal;
-    final protToday = todayTotals.protein;
-    final calGoal = (st['calorieGoal'] ?? 2000) as num;
-    final protGoal = (st['proteinGoal'] ?? 150) as num;
-    final actToday = Map<String, dynamic>.from(app.data.activity[today] ?? {});
-    final burnedToday = (actToday['kcal'] ?? 0) as num;
-    final adjustedCalGoal = calGoal + burnedToday;
-    final tdee = (app.data.plan?['tdee'] ?? calGoal) as num;
-    // Positive = under maintenance (deficit), negative = over maintenance (surplus).
-    final balance = (tdee - (kcalToday - burnedToday)).round();
-    final goalType = st['goalType'];
+    final kcalToday = snap.kcalToday;
+    final protToday = snap.protToday;
+    final protGoal = snap.protGoal;
+    final adjustedCalGoal = snap.adjustedCalGoal;
+    final tdee = snap.tdee;
+    final balance = snap.balance;
+    final goalType = snap.goalType;
 
-    final weightList = app.data.weight;
-    final lastWeight = weightList.isNotEmpty ? weightList.last['weight'] : null;
-    final cur = st['currentWeight'] ?? lastWeight;
-    final tgt = st['targetWeight'];
-    final daysLeft = st['targetDate'] != null ? daysBetween(today, st['targetDate']).clamp(0, 1 << 30) : null;
+    final cur = snap.currentWeight;
+    final tgt = snap.targetWeight;
+    final daysLeft = snap.daysLeft;
 
-    final act = actToday.isNotEmpty ? actToday : {'steps': 0, 'kcal': 0, 'min': 0};
-    final stepGoal = (st['stepGoal'] ?? 10000) as num;
-    final last7 = lastNDaysEntries(app.data.sessions, today, 7).length;
+    final act = snap.activityToday;
+    final burnedToday = (act['kcal'] ?? 0) as num;
+    final stepGoal = snap.stepGoal;
+    final last7 = snap.sessionsLast7Days;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
@@ -185,7 +175,7 @@ class DashboardScreen extends StatelessWidget {
                           Padding(
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
-                              '${((cur as num) - (tgt as num)).abs().toStringAsFixed(1)} to $tgt${daysLeft != null ? " · ${daysLeft}d left" : ""}',
+                              '${(cur - tgt).abs().toStringAsFixed(1)} to $tgt${daysLeft != null ? " · ${daysLeft}d left" : ""}',
                               style: TextStyle(fontSize: 12, color: T.muted),
                             ),
                           ),

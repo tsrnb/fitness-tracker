@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../shared/theme.dart';
-import '../../shared/widgets/atoms.dart';
+import '../../../shared/theme.dart';
+import '../../../shared/widgets/atoms.dart';
 
 /// Full-screen "rest day" moment, shown when the orange hero card is tapped
 /// on a day with nothing programmed to train — a calm, motivating beat
