@@ -28,6 +28,10 @@
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
 	<string>CutTracker reads your steps and active calories burned (synced from Apple Watch or other connected trackers) to keep your daily activity in sync.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>CutTracker uses your microphone so you can describe a meal by voice instead of typing it.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>CutTracker converts your spoken meal description to text so Ask AI can log it.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

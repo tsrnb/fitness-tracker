@@ -4,6 +4,9 @@
          Health, etc.) the user has feeding Health Connect on their phone. -->
     <uses-permission android:name="android.permission.health.READ_STEPS"/>
     <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED"/>
+    <!-- Ask AI's voice input (on-device speech recognition). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="cuttracker"
         android:name="${applicationName}"
@@ -67,6 +70,11 @@
         <package android:name="com.google.android.apps.healthdata" />
         <intent>
             <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+        </intent>
+        <!-- Required on Android 11+ (package visibility) for speech_to_text
+             to find the device's speech recognition service. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
         </intent>
     </queries>
 </manifest>

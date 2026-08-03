@@ -10,6 +10,7 @@ import '../data/ask_ai_controller.dart';
 import '../data/meal_repository.dart';
 import 'widgets/ai_gradient.dart';
 import 'widgets/chat_bits.dart';
+import 'voice_listen_screen.dart';
 
 /// Full-screen conversational food logging — "the flagship path," per the
 /// confirmed design: describe a meal in plain words, the model breaks it
@@ -158,6 +159,11 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
     _scrollToEnd();
   }
 
+  Future<void> _openVoiceInput() async {
+    final transcript = await VoiceListenScreen.push(context);
+    if (transcript != null && transcript.isNotEmpty) _send(transcript);
+  }
+
   void _addToLog(AssistantResultEntry entry) {
     final items = entry.result.items.map((i) => ParsedMealItem(i.name, i.kcal, i.protein, i.carb, i.fat, i.fiber)).toList();
     addMealEntries(widget.controller, items);
@@ -267,6 +273,24 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
                       style: TextStyle(fontSize: 13, color: T.text),
                       decoration: InputDecoration(border: InputBorder.none, hintText: 'Describe what you ate…', hintStyle: TextStyle(color: T.faint, fontSize: 13)),
                       onSubmitted: (_) => _send(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: _busy ? null : _openVoiceInput,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    padding: const EdgeInsets.all(1.5),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [aiColor1, aiColor2, aiColor3]),
+                    ),
+                    child: Container(
+                      decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF17161D)),
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.mic_none_rounded, size: 18, color: Colors.white),
                     ),
                   ),
                 ),
