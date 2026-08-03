@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import '../../shared/theme.dart';
-import '../../shared/widgets/atoms.dart';
-import '../../shared/lib/helpers.dart';
-import '../../shared/lib/macro_totals.dart';
-import '../../app/app_state.dart';
-import '../training/domain/training_split.dart';
-import '../training/data/training_splits_data.dart';
+import '../../../shared/theme.dart';
+import '../../../shared/widgets/atoms.dart';
+import '../../../shared/lib/helpers.dart';
+import '../../../shared/lib/macro_totals.dart';
+import '../../../app/app_state.dart';
+import '../../training/domain/training_split.dart';
+import '../../training/data/training_splits_data.dart';
 
 /// Full-page "Your Plan" (replacing the old modal sheet — a bottom sheet
 /// squeezed a headline, 3 stat tiles, a training card and a full meal list

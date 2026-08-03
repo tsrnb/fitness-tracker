@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../../shared/theme.dart';
 import '../../shared/widgets/atoms.dart';
 import '../../shared/lib/helpers.dart';
-import '../plan/plan_generator.dart';
+import '../plan/domain/plan.dart';
+import '../plan/data/plan_generator.dart';
+import '../plan/data/plan_options.dart';
 import '../training/data/training_splits_data.dart';
 import '../training/data/split_effectiveness.dart';
 

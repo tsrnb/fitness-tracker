@@ -6,7 +6,7 @@ import '../../shared/widgets/ai_shimmer_once.dart';
 import '../../shared/lib/helpers.dart';
 import '../../shared/lib/macro_totals.dart';
 import '../../app/app_state.dart';
-import '../plan/plan_generator.dart';
+import '../plan/data/plan_options.dart';
 import '../training/domain/program.dart';
 import '../training/data/training_splits_data.dart';
 import '../nutrition/presentation/log_food_sheet.dart';
