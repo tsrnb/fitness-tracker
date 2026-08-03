@@ -9,7 +9,7 @@ import '../../app/app_state.dart';
 import '../plan/plan_generator.dart';
 import '../training/program.dart';
 import '../training/splits.dart';
-import '../nutrition/log_food_sheet.dart';
+import '../nutrition/presentation/log_food_sheet.dart';
 import 'rest_day_screen.dart';
 import 'health_sync_banner.dart';
 

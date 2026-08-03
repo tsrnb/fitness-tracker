@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../features/nutrition/ai_gradient.dart';
+import '../../features/nutrition/presentation/widgets/ai_gradient.dart';
 
 /// Plays the AI-brand gradient shimmer over [child] once whenever this
 /// subtree becomes visible — a wash fade-in/hold/fade-out plus a light band

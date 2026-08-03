@@ -1,12 +1,4 @@
-class ParsedMealItem {
-  final String name;
-  final int kcal;
-  final int protein;
-  final int carb;
-  final int fat;
-  final int fiber;
-  const ParsedMealItem(this.name, this.kcal, this.protein, [this.carb = 0, this.fat = 0, this.fiber = 0]);
-}
+import '../domain/parsed_meal_item.dart';
 
 /// Parses lines like "2 Rotis, 240, 6, 30, 4, 3" -> {name, kcal, protein, carb, fat, fiber}.
 /// Trailing fields are optional and default to 0, right-aligned in the order

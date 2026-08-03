@@ -1,6 +1,6 @@
-import '../../app/app_state.dart';
-import '../../shared/lib/helpers.dart';
-import 'parse_meal_lines.dart';
+import '../../../app/app_state.dart';
+import '../../../shared/lib/helpers.dart';
+import '../domain/parsed_meal_item.dart';
 
 /// Shared "append a meal to a day's diet log" logic, used by the full
 /// Nutrition screen, the home screen's quick-log sheet, and the Progress

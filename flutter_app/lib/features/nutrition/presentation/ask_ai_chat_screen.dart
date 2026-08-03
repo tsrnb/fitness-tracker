@@ -1,13 +1,15 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../../shared/theme.dart';
-import '../../shared/lib/helpers.dart';
-import '../../shared/lib/macro_totals.dart';
-import '../../app/app_state.dart';
-import 'ai_gradient.dart';
-import 'openai_food_service.dart';
-import 'parse_meal_lines.dart';
-import 'meal_log.dart';
+import '../../../shared/theme.dart';
+import '../../../shared/lib/helpers.dart';
+import '../../../shared/lib/macro_totals.dart';
+import '../../../app/app_state.dart';
+import '../domain/chat_entry.dart';
+import '../domain/ai_food_item.dart';
+import '../domain/parsed_meal_item.dart';
+import '../data/ask_ai_controller.dart';
+import '../data/meal_repository.dart';
+import 'widgets/ai_gradient.dart';
+import 'widgets/chat_bits.dart';
 
 /// Full-screen conversational food logging — "the flagship path," per the
 /// confirmed design: describe a meal in plain words, the model breaks it
@@ -25,47 +27,13 @@ class AskAiChatScreen extends StatefulWidget {
   State<AskAiChatScreen> createState() => _AskAiChatScreenState();
 }
 
-sealed class _Entry {}
-
-class _UserText extends _Entry {
-  final String text;
-  _UserText(this.text);
-}
-
-class _AssistantText extends _Entry {
-  final String text;
-  _AssistantText(this.text);
-}
-
-class _AssistantTyping extends _Entry {}
-
-class _AssistantResult extends _Entry {
-  final AiFoodParseResult result;
-  bool added = false;
-  _AssistantResult(this.result);
-}
-
-class _AssistantError extends _Entry {
-  final String message;
-  _AssistantError(this.message);
-}
-
 class _AskAiChatScreenState extends State<AskAiChatScreen> {
-  final _service = OpenAiFoodService();
+  final _ai = AskAiController();
   final _scrollCtrl = ScrollController();
   final _inputCtrl = TextEditingController();
-  final List<_Entry> _entries = [];
+  final List<ChatEntry> _entries = [];
   bool _showChips = true;
   bool _busy = false;
-
-  // Prior user/assistant turns replayed to the model on each call so a
-  // follow-up like "add 10g protein to that" resolves against the items
-  // just shown instead of arriving with no context. Only successful,
-  // food-containing exchanges are kept — errors and off-topic replies add
-  // nothing worth chaining. Capped to the last few exchanges since only
-  // recent context matters here and it keeps the request small.
-  final List<Map<String, String>> _history = [];
-  static const _maxHistoryMessages = 12;
 
   // Seeded from persisted per-user data and kept locally in sync so a fact
   // remembered mid-session is usable by the next message in *this* session
@@ -86,14 +54,6 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
     }
     _knownFacts = next;
     await widget.controller.update('aiFoodMemory', (_) => next);
-  }
-
-  void _pushHistory(String userText, String assistantRawContent) {
-    _history.add({'role': 'user', 'content': userText});
-    _history.add({'role': 'assistant', 'content': assistantRawContent});
-    if (_history.length > _maxHistoryMessages) {
-      _history.removeRange(0, _history.length - _maxHistoryMessages);
-    }
   }
 
   // Running total of what's been added to the log *this session*, so each
@@ -128,10 +88,10 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
   // dead, so it's more honest to always offer the card and only find out
   // once the user has committed to it, explain why, and hand them back.
   Future<void> _checkAvailability() async {
-    final ok = await _service.ping();
+    final ok = await _ai.ping();
     if (!mounted || ok) return;
     setState(() {
-      _entries.add(_AssistantError("Ask AI isn't reachable right now — taking you back so you can log it yourself."));
+      _entries.add(AssistantErrorEntry("Ask AI isn't reachable right now — taking you back so you can log it yourself."));
       _showChips = false;
     });
     _scrollToEnd();
@@ -157,8 +117,8 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
     final msg = (preset ?? _inputCtrl.text).trim();
     if (msg.isEmpty || _busy) return;
     setState(() {
-      _entries.add(_UserText(msg));
-      _entries.add(_AssistantTyping());
+      _entries.add(UserTextEntry(msg));
+      _entries.add(AssistantTypingEntry());
       _inputCtrl.clear();
       _showChips = false;
       _busy = true;
@@ -166,32 +126,31 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
     _scrollToEnd();
 
     try {
-      final result = await _service.parseMeal(msg, history: _history, knownFacts: _knownFacts);
+      final result = await _ai.send(msg, knownFacts: _knownFacts);
       if (!mounted) return;
-      _pushHistory(msg, result.rawContent);
       if (result.remember.isNotEmpty) await _rememberFacts(result.remember);
       setState(() {
-        _entries.removeWhere((e) => e is _AssistantTyping);
-        if (result.reply != null && result.reply!.isNotEmpty) _entries.add(_AssistantText(result.reply!));
-        _entries.add(_AssistantResult(result));
+        _entries.removeWhere((e) => e is AssistantTypingEntry);
+        if (result.reply != null && result.reply!.isNotEmpty) _entries.add(AssistantTextEntry(result.reply!));
+        _entries.add(AssistantResultEntry(result));
       });
     } on AiConfigException {
       if (!mounted) return;
       setState(() {
-        _entries.removeWhere((e) => e is _AssistantTyping);
-        _entries.add(_AssistantError("Ask AI isn't set up yet — add an OpenAI key to secrets.json and rebuild."));
+        _entries.removeWhere((e) => e is AssistantTypingEntry);
+        _entries.add(AssistantErrorEntry("Ask AI isn't set up yet — add an OpenAI key to secrets.json and rebuild."));
       });
     } on AiParseException catch (e) {
       if (!mounted) return;
       setState(() {
-        _entries.removeWhere((e) => e is _AssistantTyping);
-        _entries.add(_AssistantError(e.message));
+        _entries.removeWhere((e) => e is AssistantTypingEntry);
+        _entries.add(AssistantErrorEntry(e.message));
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _entries.removeWhere((e) => e is _AssistantTyping);
-        _entries.add(_AssistantError("Something went wrong — try again."));
+        _entries.removeWhere((e) => e is AssistantTypingEntry);
+        _entries.add(AssistantErrorEntry("Something went wrong — try again."));
       });
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -199,7 +158,7 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
     _scrollToEnd();
   }
 
-  void _addToLog(_AssistantResult entry) {
+  void _addToLog(AssistantResultEntry entry) {
     final items = entry.result.items.map((i) => ParsedMealItem(i.name, i.kcal, i.protein, i.carb, i.fat, i.fiber)).toList();
     addMealEntries(widget.controller, items);
     final kcal = items.fold<num>(0, (a, b) => a + b.kcal);
@@ -254,7 +213,7 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const _AssistantOrb(size: 30, pulse: true),
+                  const AssistantOrb(size: 30, pulse: true),
                   const SizedBox(width: 10),
                   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     const Text('Ask AI', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: Colors.white)),
@@ -332,19 +291,19 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
     );
   }
 
-  Widget _buildEntry(_Entry e) {
+  Widget _buildEntry(ChatEntry e) {
     return switch (e) {
-      _UserText() => Padding(padding: const EdgeInsets.only(bottom: 12), child: _userBubble(e.text)),
-      _AssistantText() => Padding(padding: const EdgeInsets.only(bottom: 12), child: _assistantBubble(e.text)),
-      _AssistantTyping() => const Padding(padding: EdgeInsets.only(bottom: 12), child: _TypingBubble()),
-      _AssistantResult() => Padding(padding: const EdgeInsets.only(bottom: 12), child: _resultCard(e)),
-      _AssistantError() => Padding(padding: const EdgeInsets.only(bottom: 12), child: _errorBubble(e.message)),
+      UserTextEntry() => Padding(padding: const EdgeInsets.only(bottom: 12), child: _userBubble(e.text)),
+      AssistantTextEntry() => Padding(padding: const EdgeInsets.only(bottom: 12), child: _assistantBubble(e.text)),
+      AssistantTypingEntry() => const Padding(padding: EdgeInsets.only(bottom: 12), child: TypingBubble()),
+      AssistantResultEntry() => Padding(padding: const EdgeInsets.only(bottom: 12), child: _resultCard(e)),
+      AssistantErrorEntry() => Padding(padding: const EdgeInsets.only(bottom: 12), child: _errorBubble(e.message)),
     };
   }
 
   Widget _assistantBubble(String text) {
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const _AssistantOrb(size: 24),
+      const AssistantOrb(size: 24),
       const SizedBox(width: 8),
       Flexible(
         child: Container(
@@ -360,7 +319,7 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
 
   Widget _errorBubble(String text) {
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const _AssistantOrb(size: 24),
+      const AssistantOrb(size: 24),
       const SizedBox(width: 8),
       Flexible(
         child: Container(
@@ -396,7 +355,7 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
     ]);
   }
 
-  Widget _resultCard(_AssistantResult entry) {
+  Widget _resultCard(AssistantResultEntry entry) {
     final items = entry.result.items;
     final totalKcal = items.fold<int>(0, (a, b) => a + b.kcal);
     final totalProtein = items.fold<int>(0, (a, b) => a + b.protein);
@@ -406,10 +365,10 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
     final proteinRingPct = _proteinGoal > 0 ? (projectedProtein / _proteinGoal * 100).clamp(0, 100) : 0.0;
 
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const _AssistantOrb(size: 24),
+      const AssistantOrb(size: 24),
       const SizedBox(width: 8),
       Expanded(
-        child: _GradientBorder(
+        child: GradientBorder(
           radius: 17,
           child: Container(
             padding: const EdgeInsets.all(13),
@@ -483,7 +442,7 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
   }
 
   Widget _miniRing(double pct, Color color) {
-    return SizedBox(width: 22, height: 22, child: CustomPaint(painter: _RingPainter(pct.clamp(0.0, 1.0), color)));
+    return SizedBox(width: 22, height: 22, child: CustomPaint(painter: MiniRingPainter(pct.clamp(0.0, 1.0), color)));
   }
 
   Widget _statChip(String value, String label, Color barColor, double pct) {
@@ -523,151 +482,4 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
       child: Container(width: size, height: size, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [color, color.withValues(alpha: 0)]))),
     );
   }
-}
-
-class _AssistantOrb extends StatefulWidget {
-  final double size;
-  final bool pulse;
-  const _AssistantOrb({required this.size, this.pulse = false});
-
-  @override
-  State<_AssistantOrb> createState() => _AssistantOrbState();
-}
-
-class _AssistantOrbState extends State<_AssistantOrb> with SingleTickerProviderStateMixin {
-  late final AnimationController _c;
-
-  @override
-  void initState() {
-    super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 2400))..repeat(reverse: widget.pulse);
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (context, child) => Transform.scale(scale: widget.pulse ? 1 + _c.value * 0.08 : 1, child: child),
-      child: AiGradient(
-        builder: (context, gradient) => Container(
-          width: widget.size,
-          height: widget.size,
-          margin: const EdgeInsets.only(top: 2),
-          decoration: BoxDecoration(shape: BoxShape.circle, gradient: gradient),
-          alignment: Alignment.center,
-          child: Icon(Icons.auto_awesome, size: widget.size * 0.46, color: Colors.white),
-        ),
-      ),
-    );
-  }
-}
-
-class _TypingBubble extends StatelessWidget {
-  const _TypingBubble();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const _AssistantOrb(size: 24),
-      const SizedBox(width: 8),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-        decoration: BoxDecoration(color: T.surface2, border: Border.all(color: T.line), borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(4), topRight: Radius.circular(16), bottomLeft: Radius.circular(16), bottomRight: Radius.circular(16),
-        )),
-        child: const _TypingDots(),
-      ),
-    ]);
-  }
-}
-
-class _TypingDots extends StatefulWidget {
-  const _TypingDots();
-  @override
-  State<_TypingDots> createState() => _TypingDotsState();
-}
-
-class _TypingDotsState extends State<_TypingDots> with SingleTickerProviderStateMixin {
-  late final AnimationController _c;
-  @override
-  void initState() {
-    super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat();
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (context, _) {
-        return Row(mainAxisSize: MainAxisSize.min, children: List.generate(3, (i) {
-          final t = ((_c.value - i * 0.15) % 1.0 + 1.0) % 1.0;
-          final bump = t < 0.3 ? math.sin(t / 0.3 * math.pi) : 0.0;
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Transform.translate(
-              offset: Offset(0, -bump * 3),
-              child: Container(width: 5, height: 5, decoration: BoxDecoration(shape: BoxShape.circle, color: T.muted.withValues(alpha: 0.4 + bump * 0.6))),
-            ),
-          );
-        }));
-      },
-    );
-  }
-}
-
-class _GradientBorder extends StatelessWidget {
-  final Widget child;
-  final double radius;
-  const _GradientBorder({required this.child, required this.radius});
-
-  @override
-  Widget build(BuildContext context) {
-    return AiGradient(
-      builder: (context, gradient) => Container(
-        padding: const EdgeInsets.all(1.5),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(radius), gradient: gradient),
-        child: child,
-      ),
-    );
-  }
-}
-
-class _RingPainter extends CustomPainter {
-  final double pct;
-  final Color color;
-  _RingPainter(this.pct, this.color);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final r = size.width / 2 - 1.75;
-    final track = Paint()
-      ..color = const Color(0xFF26252E)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.5;
-    canvas.drawCircle(center, r, track);
-    if (pct <= 0) return;
-    final stroke = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.5
-      ..strokeCap = StrokeCap.round;
-    canvas.drawArc(Rect.fromCircle(center: center, radius: r), -math.pi / 2, 2 * math.pi * pct, false, stroke);
-  }
-
-  @override
-  bool shouldRepaint(covariant _RingPainter old) => old.pct != pct || old.color != color;
 }

@@ -5,8 +5,9 @@ import '../../shared/theme.dart';
 import '../../shared/widgets/atoms.dart';
 import '../../app/app_state.dart';
 import '../../shared/lib/helpers.dart';
-import '../nutrition/meal_log.dart';
-import '../nutrition/parse_meal_lines.dart';
+import '../nutrition/data/meal_repository.dart';
+import '../nutrition/data/meal_line_parser.dart';
+import '../nutrition/domain/parsed_meal_item.dart';
 
 /// Add-on section for Progress → Nutrition: a week of dual calorie/protein
 /// rings (outer = calories vs goal, inner = protein vs goal), tap a day to

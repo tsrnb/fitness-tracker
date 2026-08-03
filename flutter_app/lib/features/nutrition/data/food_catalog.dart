@@ -1,12 +1,4 @@
-class FoodItem {
-  final String name;
-  final int kcal;
-  final int protein;
-  final int carb;
-  final int fat;
-  final int fiber;
-  const FoodItem(this.name, this.kcal, this.protein, [this.carb = 0, this.fat = 0, this.fiber = 0]);
-}
+import '../domain/food_item.dart';
 
 /// Foods for quick-add, filtered by diet preference (kcal, protein, carb, fat, fiber per portion).
 final Map<String, List<FoodItem>> _foodDb = {

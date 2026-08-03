@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import '../../shared/theme.dart';
-import '../../shared/widgets/atoms.dart';
-import '../../shared/widgets/ai_shimmer_once.dart';
-import '../../shared/lib/helpers.dart';
-import '../../shared/lib/macro_totals.dart';
-import '../../app/app_state.dart';
+import '../../../shared/theme.dart';
+import '../../../shared/widgets/atoms.dart';
+import '../../../shared/widgets/ai_shimmer_once.dart';
+import '../../../shared/lib/helpers.dart';
+import '../../../shared/lib/macro_totals.dart';
+import '../../../app/app_state.dart';
+import '../data/meal_repository.dart';
 import 'log_food_sheet.dart';
 
 class NutritionScreen extends StatefulWidget {
@@ -25,12 +26,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
 
   void removeMeal(dynamic id) {
     final today = todayStr(widget.app.data.settings);
-    widget.controller.update('diet', (prev) {
-      final d = Map<String, dynamic>.from(prev ?? {});
-      final list = List<Map<String, dynamic>>.from(d[today] ?? []).where((m) => m['id'] != id).toList();
-      d[today] = list;
-      return d;
-    });
+    removeMealEntry(widget.controller, today, id);
   }
 
   void setWater(int n) {
