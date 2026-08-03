@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../shared/theme.dart';
-import '../../shared/widgets/atoms.dart';
-import '../../app/app_state.dart';
+import '../../../shared/theme.dart';
+import '../../../shared/widgets/atoms.dart';
+import '../../../app/app_state.dart';
 import 'switch_profile_screen.dart';
 
 /// Profile list page — switch-on-tap with active-highlighting, and an "Add

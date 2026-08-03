@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../../shared/theme.dart';
+import '../../../shared/theme.dart';
 
 const _accentGold = Color(0xFFFFC978);
 const _accentInk = Color(0xFFB8391A);

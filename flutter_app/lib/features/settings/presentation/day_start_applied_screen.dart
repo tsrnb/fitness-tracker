@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../shared/theme.dart';
+import '../../../shared/theme.dart';
 
 /// Full-screen, one-shot confirmation shown right after the day-boundary
 /// setting is saved. This isn't decoration — changing "what day is it" is a

@@ -14,7 +14,7 @@ import '../features/progress/progress_screen.dart';
 import '../features/nutrition/presentation/nutrition_screen.dart';
 import '../features/plan/plan_screen.dart';
 import '../features/activity/log_activity_sheet.dart';
-import '../features/settings/settings_screen.dart';
+import '../features/settings/presentation/settings_screen.dart';
 import 'app_state.dart';
 
 const _tabs = [
