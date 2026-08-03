@@ -16,10 +16,7 @@ class ActivityProgressScreen extends StatelessWidget {
     final entries = app.data.activity.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
     final stepData = entries.map((e) => {'d': fmtDay(e.key), 'v': ((e.value['steps'] ?? 0) as num).toDouble()}).toList();
     final kcalData = entries.map((e) => {'d': fmtDay(e.key), 'v': ((e.value['kcal'] ?? 0) as num).toDouble()}).toList();
-    final last7 = entries.where((e) {
-      final df = daysBetween(e.key, today);
-      return df >= 0 && df < 7;
-    }).toList();
+    final last7 = lastNDaysEntries(app.data.activity, today, 7);
     final totSteps = last7.fold<num>(0, (x, e) => x + ((e.value['steps'] ?? 0) as num));
     final totKcal = last7.fold<num>(0, (x, e) => x + ((e.value['kcal'] ?? 0) as num));
     final totMin = last7.fold<num>(0, (x, e) => x + ((e.value['min'] ?? 0) as num));

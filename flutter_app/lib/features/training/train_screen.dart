@@ -98,10 +98,7 @@ class _TrainScreenState extends State<TrainScreen> {
     });
   }
 
-  bool _savedToday(String name) {
-    final h = List<dynamic>.from(widget.app.data.history[name] ?? []);
-    return h.isNotEmpty && h.last['date'] == todayStr(widget.app.data.settings);
-  }
+  bool _savedToday(String name) => isLoggedToday(widget.app.data.history, name, todayStr(widget.app.data.settings));
 
   void _saveExercise(String name) {
     final rows = work[name] ?? [];

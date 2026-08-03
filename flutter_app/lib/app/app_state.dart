@@ -225,6 +225,18 @@ class AppController extends StateNotifier<AppState> {
     ));
   }
 
+  /// Sets one key within `settings` and persists — replaces the "clone the
+  /// settings map, mutate one field, `update('settings', ...)`" that was
+  /// hand-rolled the same way in several screens (day-start time, theme
+  /// mode, current weight, active training-plan schedule).
+  Future<void> patchSettings(String key, dynamic value) {
+    return update('settings', (prev) {
+      final s = Map<String, dynamic>.from(prev ?? {});
+      s[key] = value;
+      return s;
+    });
+  }
+
   Future<void> addFood(String name, double kcal, double protein, [double carb = 0, double fat = 0, double fiber = 0]) async {
     final uid = state.user!.id;
     await _backend.addFood(uid, name, kcal, protein, carb, fat, fiber);

@@ -4,7 +4,9 @@ import '../../shared/theme.dart';
 import '../../shared/widgets/atoms.dart';
 import '../../shared/widgets/ai_shimmer_once.dart';
 import '../../shared/lib/helpers.dart';
+import '../../shared/lib/macro_totals.dart';
 import '../../app/app_state.dart';
+import '../plan/plan_generator.dart';
 import '../training/program.dart';
 import '../training/splits.dart';
 import '../nutrition/log_food_sheet.dart';
@@ -27,14 +29,12 @@ class DashboardScreen extends StatelessWidget {
     final split = activeSplit(st);
     final todayDay = scheduleFromSettings(st, split)[jsDow];
     final exercises = todayDay != null ? split.program[todayDay]!.items : <ProgramItem>[];
-    bool loggedToday(String name) {
-      final h = List<dynamic>.from(app.data.history[name] ?? []);
-      return h.isNotEmpty && h.last['date'] == today;
-    }
+    bool loggedToday(String name) => isLoggedToday(app.data.history, name, today);
 
     final meals = List<Map<String, dynamic>>.from(app.data.diet[today] ?? []);
-    final kcalToday = meals.fold<num>(0, (a, b) => a + (b['kcal'] ?? 0));
-    final protToday = meals.fold<num>(0, (a, b) => a + (b['protein'] ?? 0));
+    final todayTotals = sumMacros(meals);
+    final kcalToday = todayTotals.kcal;
+    final protToday = todayTotals.protein;
     final calGoal = (st['calorieGoal'] ?? 2000) as num;
     final protGoal = (st['proteinGoal'] ?? 150) as num;
     final actToday = Map<String, dynamic>.from(app.data.activity[today] ?? {});
@@ -53,10 +53,7 @@ class DashboardScreen extends StatelessWidget {
 
     final act = actToday.isNotEmpty ? actToday : {'steps': 0, 'kcal': 0, 'min': 0};
     final stepGoal = (st['stepGoal'] ?? 10000) as num;
-    final last7 = app.data.sessions.keys.where((d) {
-      final df = daysBetween(d, today);
-      return df >= 0 && df < 7;
-    }).length;
+    final last7 = lastNDaysEntries(app.data.sessions, today, 7).length;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
@@ -209,7 +206,7 @@ class DashboardScreen extends StatelessWidget {
                       Row(children: [
                         const Icon(Icons.auto_awesome, size: 18, color: T.hero),
                         const SizedBox(width: 8),
-                        Text(_goalLabel(st['goalType']), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                        Text(goalLabel(st['goalType'] as String?, fallback: 'Coach'), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                       ]),
                       Padding(padding: EdgeInsets.only(top: 6), child: Text('Tap for diet & training', style: TextStyle(fontSize: 12, color: T.muted))),
                     ],
@@ -395,16 +392,4 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  String _goalLabel(dynamic goalType) {
-    switch (goalType) {
-      case 'fatLoss':
-        return 'Fat loss';
-      case 'weightGain':
-        return 'Muscle gain';
-      case 'maintain':
-        return 'Maintain';
-      default:
-        return 'Coach';
-    }
-  }
 }

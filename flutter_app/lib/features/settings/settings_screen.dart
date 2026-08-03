@@ -51,24 +51,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void set(String key, dynamic value) => setState(() => f[key] = value);
 
-  Plan _generate() {
-    final currentWeight = double.tryParse('${f['currentWeight'] ?? ''}') ?? 0;
-    final targetWeight = double.tryParse('${f['targetWeight'] ?? ''}') ?? currentWeight;
-    final height = double.tryParse('${f['height'] ?? ''}') ?? 0;
-    final age = double.tryParse('${f['age'] ?? ''}') ?? 0;
-    return generatePlan(
-      currentWeight: currentWeight,
-      targetWeight: targetWeight,
-      height: height,
-      age: age,
-      sex: f['sex'] ?? 'male',
-      activity: f['activity'] ?? 'moderate',
-      goalType: f['goalType'] ?? 'fatLoss',
-      dietPref: f['dietPref'] ?? 'veg',
-      targetDate: f['targetDate'] ?? '',
-      calorieBuffer: (f['calorieBuffer'] as num?)?.toInt() ?? 0,
-    );
-  }
+  Plan _generate() => buildPlanFromSettings(f);
 
   void recalculateMacros() {
     final plan = _generate();
@@ -109,11 +92,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     AppTheme.set(mode == 'light' ? Brightness.light : Brightness.dark);
     // Persisted immediately (unlike the other groups) since there's no
     // natural "Save" action tied to appearance and it should stick right away.
-    widget.controller.update('settings', (prev) {
-      final s = Map<String, dynamic>.from(prev ?? {});
-      s['themeMode'] = mode;
-      return s;
-    });
+    widget.controller.patchSettings('themeMode', mode);
   }
 
   static String _fmtDayStart(int minutes) {
@@ -130,11 +109,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Same immediate-persist rationale as appearance — this only changes how
     // "today" is computed going forward, nothing here feeds plan/macro
     // recalculation, so there's no reason to gate it behind Save.
-    widget.controller.update('settings', (prev) {
-      final s = Map<String, dynamic>.from(prev ?? {});
-      s['dayStartMinutes'] = minutes;
-      return s;
-    });
+    widget.controller.patchSettings('dayStartMinutes', minutes);
   }
 
   void _openDayBoundarySheet(BuildContext context) {
@@ -607,13 +582,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _sectionLabel(String text) => Eyebrow(text);
 
-  String _goalLabel(String key) => goalOptions.firstWhere((o) => o.key == key, orElse: () => const MapEntry('', '')).value;
-
   /// "Fat loss · 8.0kg to go" — nothing to chase for `maintain`, so that case
   /// just shows the goal name.
   String _heroSubtitle() {
     final goal = (f['goalType'] as String?) ?? 'fatLoss';
-    final label = _goalLabel(goal);
+    final label = goalLabel(goal);
     if (goal == 'maintain') return label;
     final cur = double.tryParse('${f['currentWeight'] ?? ''}') ?? 0;
     final tgt = double.tryParse('${f['targetWeight'] ?? ''}') ?? cur;
@@ -705,7 +678,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _badgeRow(context,
           icon: Icons.flag, iconColor: T.hero, iconBg: T.accentDim,
           label: 'Goals', sub: 'Goal type & activity level',
-          badge: _goalLabel((f['goalType'] as String?) ?? 'fatLoss'), badgeBg: T.accentDim, badgeColor: T.hero,
+          badge: goalLabel((f['goalType'] as String?) ?? 'fatLoss'), badgeBg: T.accentDim, badgeColor: T.hero,
           route: 'goals'),
       _badgeRow(context,
           icon: Icons.fitness_center, iconColor: T.lav, iconBg: T.lavSoft,

@@ -3,6 +3,7 @@ import '../../shared/theme.dart';
 import '../../shared/widgets/atoms.dart';
 import '../../shared/widgets/ai_shimmer_once.dart';
 import '../../shared/lib/helpers.dart';
+import '../../shared/lib/macro_totals.dart';
 import '../../app/app_state.dart';
 import 'log_food_sheet.dart';
 
@@ -92,11 +93,12 @@ class _NutritionScreenState extends State<NutritionScreen> {
     final st = widget.app.data.settings;
     final today = todayStr(st);
     final meals = List<Map<String, dynamic>>.from(widget.app.data.diet[today] ?? []);
-    final kcal = meals.fold<num>(0, (a, b) => a + (b['kcal'] ?? 0));
-    final prot = meals.fold<num>(0, (a, b) => a + (b['protein'] ?? 0));
-    final carb = meals.fold<num>(0, (a, b) => a + (b['carb'] ?? 0));
-    final fat = meals.fold<num>(0, (a, b) => a + (b['fat'] ?? 0));
-    final fiber = meals.fold<num>(0, (a, b) => a + (b['fiber'] ?? 0));
+    final totals = sumMacros(meals);
+    final kcal = totals.kcal;
+    final prot = totals.protein;
+    final carb = totals.carb;
+    final fat = totals.fat;
+    final fiber = totals.fiber;
     final calGoal = (st['calorieGoal'] ?? 2000) as num;
     final protGoal = (st['proteinGoal'] ?? 150) as num;
     final carbGoal = (st['carbGoal'] ?? 250) as num;

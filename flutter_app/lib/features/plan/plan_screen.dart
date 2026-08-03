@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../shared/theme.dart';
 import '../../shared/widgets/atoms.dart';
 import '../../shared/lib/helpers.dart';
+import '../../shared/lib/macro_totals.dart';
 import '../../app/app_state.dart';
 import '../training/splits.dart';
 
@@ -51,11 +52,7 @@ class _PlanScreenState extends State<PlanScreen> {
       schedule[a] = schedule[b];
       schedule[b] = tmp;
     });
-    widget.controller.update('settings', (prev) {
-      final s = Map<String, dynamic>.from(prev ?? {});
-      s['schedule'] = schedule;
-      return s;
-    });
+    widget.controller.patchSettings('schedule', schedule);
   }
 
   void _showInfoBubble(String text) {
@@ -93,8 +90,9 @@ class _PlanScreenState extends State<PlanScreen> {
       );
     }
     final meals = List<Map<String, dynamic>>.from(plan['meals']);
-    final mealKcal = meals.fold<num>(0, (a, b) => a + b['kcal']);
-    final mealProt = meals.fold<num>(0, (a, b) => a + b['protein']);
+    final mealTotals = sumMacros(meals);
+    final mealKcal = mealTotals.kcal;
+    final mealProt = mealTotals.protein;
     final feasible = plan['feasible'] as bool;
     final suggestedDate = plan['suggestedDate'] as String?;
 
@@ -217,11 +215,10 @@ class _PlanScreenState extends State<PlanScreen> {
 
   // Cycled by the day-type's position in the active split's dayOrder, so any
   // split (3 to 6 distinct day types) gets a stable, distinct color per type.
-  static const _dayPalette = [T.hero, T.blue, T.success, T.lav, T.danger, Color(0xFFCBA858)];
 
   Color _dayColor(String dayType) {
     final idx = split.dayOrder.indexOf(dayType);
-    return _dayPalette[(idx < 0 ? 0 : idx) % _dayPalette.length];
+    return dayPalette[(idx < 0 ? 0 : idx) % dayPalette.length];
   }
 
   String _dayAbbr(String dayType) => split.dayAbbr[dayType] ?? dayType.substring(0, dayType.length < 2 ? dayType.length : 2);

@@ -112,3 +112,7 @@ ThemeData buildAppTheme() {
     highlightColor: Colors.transparent,
   );
 }
+
+/// Cycling color-per-weekday palette used to distinguish day tiles in both
+/// the weekly Plan calendar and the Training Plan chooser's day rows.
+const dayPalette = [T.hero, T.blue, T.success, T.lav, T.danger, Color(0xFFCBA858)];

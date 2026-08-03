@@ -5,8 +5,6 @@ import '../../app/app_state.dart';
 import '../plan/plan_generator.dart';
 import 'splits.dart';
 
-const _dayPalette = [T.hero, T.blue, T.success, T.lav, T.danger, Color(0xFFCBA858)];
-
 /// Full-page "Training plan" chooser (Settings → Training plan). Splits are
 /// ranked by an effectiveness score for whichever goal is selected up top —
 /// most effective first — and picking one immediately swaps the app's active
@@ -49,8 +47,6 @@ class _TrainingPlanChooserScreenState extends State<TrainingPlanChooserScreen> {
 
   List<TrainingSplit> get _ranked => rankedSplits(goal);
 
-  String _goalLabel(String key) => goalOptions.firstWhere((o) => o.key == key, orElse: () => const MapEntry('', '')).value;
-
   Future<bool?> _confirmGoalSwitch(String currentGoal, String newGoal) {
     return showDialog<bool>(
       context: context,
@@ -58,8 +54,8 @@ class _TrainingPlanChooserScreenState extends State<TrainingPlanChooserScreen> {
         backgroundColor: T.surface,
         title: Text('Switch your goal too?', style: TextStyle(color: T.text)),
         content: Text(
-          'This plan is ranked for "${_goalLabel(newGoal)}", but your goal is set to "${_goalLabel(currentGoal)}". '
-          'Continuing will also switch your goal to "${_goalLabel(newGoal)}" — your calories, macros, and nutrition plan will be recalculated.',
+          'This plan is ranked for "${goalLabel(newGoal)}", but your goal is set to "${goalLabel(currentGoal)}". '
+          'Continuing will also switch your goal to "${goalLabel(newGoal)}" — your calories, macros, and nutrition plan will be recalculated.',
           style: TextStyle(color: T.muted),
         ),
         actions: [
@@ -70,24 +66,7 @@ class _TrainingPlanChooserScreenState extends State<TrainingPlanChooserScreen> {
     );
   }
 
-  Plan _recalculatePlan(Map<String, dynamic> settings, String goalType) {
-    final currentWeight = double.tryParse('${settings['currentWeight'] ?? ''}') ?? 0;
-    final targetWeight = double.tryParse('${settings['targetWeight'] ?? ''}') ?? currentWeight;
-    final height = double.tryParse('${settings['height'] ?? ''}') ?? 0;
-    final age = double.tryParse('${settings['age'] ?? ''}') ?? 0;
-    return generatePlan(
-      currentWeight: currentWeight,
-      targetWeight: targetWeight,
-      height: height,
-      age: age,
-      sex: settings['sex'] ?? 'male',
-      activity: settings['activity'] ?? 'moderate',
-      goalType: goalType,
-      dietPref: settings['dietPref'] ?? 'veg',
-      targetDate: settings['targetDate'] ?? '',
-      calorieBuffer: (settings['calorieBuffer'] as num?)?.toInt() ?? 0,
-    );
-  }
+  Plan _recalculatePlan(Map<String, dynamic> settings, String goalType) => buildPlanFromSettings(settings, goalType: goalType);
 
   Future<void> _select(TrainingSplit s) async {
     final switchingGoal = goal != currentGoal;
@@ -136,7 +115,7 @@ class _TrainingPlanChooserScreenState extends State<TrainingPlanChooserScreen> {
         transitionDuration: const Duration(milliseconds: 260),
         reverseTransitionDuration: const Duration(milliseconds: 200),
         pageBuilder: (_, __, ___) => _GoalSwitchTransitionScreen(
-          goalLabel: _goalLabel(goal),
+          goalLabel: goalLabel(goal),
           splitName: s.name,
           splitShortTag: s.shortTag,
           splitIcon: s.icon,
@@ -321,7 +300,7 @@ class _TrainingPlanChooserScreenState extends State<TrainingPlanChooserScreen> {
   }
 
   Widget _dayChip(TrainingSplit s, String dayType, int index) {
-    final color = _dayPalette[index % _dayPalette.length];
+    final color = dayPalette[index % dayPalette.length];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(T.pill)),

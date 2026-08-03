@@ -32,3 +32,20 @@ int daysBetween(String a, String b) {
 }
 
 num clamp(num n, num lo, num hi) => n < lo ? lo : (n > hi ? hi : n);
+
+/// True if `history[name]`'s most recent entry is dated today — the same
+/// "already logged today" check needed by both the Train screen (per
+/// exercise) and the Dashboard (per today's scheduled exercise).
+bool isLoggedToday(Map<String, dynamic> history, String name, String today) {
+  final h = List<dynamic>.from(history[name] ?? []);
+  return h.isNotEmpty && h.last['date'] == today;
+}
+
+/// Entries from a date-keyed map (`'yyyy-MM-dd' -> value`) falling within
+/// the last [n] days up to and including [today].
+List<MapEntry<String, dynamic>> lastNDaysEntries(Map<String, dynamic> map, String today, int n) {
+  return map.entries.where((e) {
+    final df = daysBetween(e.key, today);
+    return df >= 0 && df < n;
+  }).toList();
+}

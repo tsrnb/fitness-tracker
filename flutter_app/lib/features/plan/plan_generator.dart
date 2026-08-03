@@ -124,6 +124,12 @@ const goalOptions = [
   MapEntry('maintain', 'Maintain'),
 ];
 
+/// The one shared lookup from a `goalType` key to its display label —
+/// previously reimplemented separately in Settings, the training plan
+/// chooser, onboarding, and the dashboard.
+String goalLabel(String? key, {String fallback = ''}) =>
+    goalOptions.firstWhere((o) => o.key == key, orElse: () => MapEntry('', fallback)).value;
+
 /// Standard Mifflin-St Jeor activity multipliers. Missing a "sedentary" tier
 /// forced genuinely inactive users into "Light" (1.375), overestimating
 /// their real maintenance calories — every tier from the standard table is
@@ -247,5 +253,29 @@ Plan generatePlan({
     cardioNote: cardioNote,
     splitNote: splitNote,
     meals: meals,
+  );
+}
+
+/// Parses the string-keyed profile fields out of a `settings`/draft map and
+/// calls [generatePlan] — the exact parse-then-generate shape that Settings
+/// and the Training Plan chooser each re-implemented separately. Pass
+/// [goalType] to override `settings['goalType']` (e.g. a not-yet-saved
+/// selection in the training plan chooser).
+Plan buildPlanFromSettings(Map<String, dynamic> settings, {String? goalType}) {
+  final currentWeight = double.tryParse('${settings['currentWeight'] ?? ''}') ?? 0;
+  final targetWeight = double.tryParse('${settings['targetWeight'] ?? ''}') ?? currentWeight;
+  final height = double.tryParse('${settings['height'] ?? ''}') ?? 0;
+  final age = double.tryParse('${settings['age'] ?? ''}') ?? 0;
+  return generatePlan(
+    currentWeight: currentWeight,
+    targetWeight: targetWeight,
+    height: height,
+    age: age,
+    sex: settings['sex'] ?? 'male',
+    activity: settings['activity'] ?? 'moderate',
+    goalType: goalType ?? settings['goalType'] ?? 'fatLoss',
+    dietPref: settings['dietPref'] ?? 'veg',
+    targetDate: settings['targetDate'] ?? '',
+    calorieBuffer: (settings['calorieBuffer'] as num?)?.toInt() ?? 0,
   );
 }

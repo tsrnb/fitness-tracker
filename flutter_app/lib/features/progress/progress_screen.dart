@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../shared/theme.dart';
 import '../../shared/widgets/atoms.dart';
 import '../../shared/lib/helpers.dart';
+import '../../shared/lib/macro_totals.dart';
 import '../../app/app_state.dart';
 import 'activity_progress_screen.dart';
 import 'week_rings.dart';
@@ -48,11 +49,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
       });
       return list;
     });
-    widget.controller.update('settings', (prev) {
-      final s = Map<String, dynamic>.from(prev ?? {});
-      s['currentWeight'] = v;
-      return s;
-    });
+    widget.controller.patchSettings('currentWeight', v);
     wCtrl.clear();
   }
 
@@ -242,15 +239,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
     final Map<String, Map<String, int>> perDate = {};
     diet.forEach((date, meals) {
       final list = List<Map<String, dynamic>>.from(meals as List);
-      int kcal = 0, protein = 0, carb = 0, fat = 0, fiber = 0;
-      for (final m in list) {
-        kcal += ((m['kcal'] as num?) ?? 0).toInt();
-        protein += ((m['protein'] as num?) ?? 0).toInt();
-        carb += ((m['carb'] as num?) ?? 0).toInt();
-        fat += ((m['fat'] as num?) ?? 0).toInt();
-        fiber += ((m['fiber'] as num?) ?? 0).toInt();
-      }
-      perDate[date] = {'kcal': kcal, 'protein': protein, 'carb': carb, 'fat': fat, 'fiber': fiber};
+      perDate[date] = sumMacros(list).toIntMap();
     });
 
     final dates = perDate.keys.toList()..sort();
