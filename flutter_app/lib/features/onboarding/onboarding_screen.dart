@@ -3,7 +3,8 @@ import '../../shared/theme.dart';
 import '../../shared/widgets/atoms.dart';
 import '../../shared/lib/helpers.dart';
 import '../plan/plan_generator.dart';
-import '../training/splits.dart';
+import '../training/data/training_splits_data.dart';
+import '../training/data/split_effectiveness.dart';
 
 typedef OnboardingComplete = void Function(Map<String, dynamic> profile, Plan plan);
 
@@ -259,7 +260,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   onTap: () => setState(() => trainingSplitId = s.id),
                   icon: Icon(s.icon, size: 20),
                   label: s.name,
-                  sub: '${s.effectiveness[goalType] ?? 0}% match · ${s.shortTag}',
+                  sub: '${splitEffectiveness(s)[goalType] ?? 0}% match · ${s.shortTag}',
                 )),
           ],
         );

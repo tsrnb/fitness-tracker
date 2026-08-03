@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import '../../shared/theme.dart';
-import '../../shared/widgets/atoms.dart';
-import '../../app/app_state.dart';
-import '../plan/plan_generator.dart';
-import 'splits.dart';
+import '../../../shared/theme.dart';
+import '../../../shared/widgets/atoms.dart';
+import '../../../app/app_state.dart';
+import '../../plan/plan_generator.dart';
+import '../domain/training_split.dart';
+import '../data/training_splits_data.dart';
+import '../data/split_effectiveness.dart';
 
 /// Full-page "Training plan" chooser (Settings → Training plan). Splits are
 /// ranked by an effectiveness score for whichever goal is selected up top —
@@ -170,7 +172,7 @@ class _TrainingPlanChooserScreenState extends State<TrainingPlanChooserScreen> {
   }
 
   Widget _splitCard(TrainingSplit s, int rank) {
-    final pct = s.effectiveness[goal] ?? 0;
+    final pct = splitEffectiveness(s)[goal] ?? 0;
     final isActive = selectedId == s.id;
     final isExpanded = expandedId == s.id;
     final tier = _tierColor(pct);

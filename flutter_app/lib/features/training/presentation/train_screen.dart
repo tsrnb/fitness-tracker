@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
-import '../../shared/theme.dart';
-import '../../shared/widgets/atoms.dart';
-import '../../shared/lib/helpers.dart';
-import '../../shared/lib/muscle_map.dart';
-import '../../app/app_state.dart';
-import '../exercises/exercise_library.dart';
-import 'splits.dart';
+import '../../../shared/theme.dart';
+import '../../../shared/widgets/atoms.dart';
+import '../../../shared/lib/helpers.dart';
+import '../../../shared/lib/muscle_map.dart';
+import '../../../app/app_state.dart';
+import '../../exercises/exercise_library.dart';
+import '../domain/training_split.dart';
+import '../data/training_splits_data.dart';
+import '../data/training_history_repository.dart';
 import 'rest_timer_screen.dart';
 
 class TrainScreen extends StatefulWidget {
@@ -66,18 +68,8 @@ class _TrainScreenState extends State<TrainScreen> {
     final items = split.program[day]!.items;
     final init = <String, List<_SetWork>>{};
     for (final it in items) {
-      final hist = List<dynamic>.from(widget.app.data.history[it.name] ?? []);
-      final prev = hist.isNotEmpty ? hist.last : null;
-      List<_SetWork> rows;
-      if (prev != null) {
-        rows = List<Map<String, dynamic>>.from(prev['sets']).map((x) => _SetWork((x['weight'] as num).toDouble(), (x['reps'] as num).toInt())).toList();
-      } else {
-        rows = List.generate(it.sets, (_) => _SetWork(20, lowReps(it.reps)));
-      }
-      while (rows.length < it.sets) {
-        rows.add(_SetWork(rows.last.weight, rows.last.reps));
-      }
-      init[it.name] = rows.sublist(0, it.sets);
+      final rows = initialWorkingSets(widget.app.data.history, it.name, targetSets: it.sets, repRange: it.reps);
+      init[it.name] = rows.map((r) => _SetWork(r['weight']!.toDouble(), r['reps']!.toInt())).toList();
     }
     work = init;
     open = items.isNotEmpty ? items.first.name : null;
@@ -105,17 +97,7 @@ class _TrainScreenState extends State<TrainScreen> {
     final sets = rows.where((x) => x.reps > 0).map((x) => {'weight': x.weight, 'reps': x.reps}).toList();
     if (sets.isEmpty) return;
     final today = todayStr(widget.app.data.settings);
-    widget.controller.update('history', (prev) {
-      final h = Map<String, dynamic>.from(prev ?? {});
-      final existing = List<dynamic>.from(h[name] ?? []).where((e) => e['date'] != today).toList();
-      h[name] = [...existing, {'date': today, 'sets': sets}];
-      return h;
-    });
-    widget.controller.update('sessions', (prev) {
-      final s = Map<String, dynamic>.from(prev ?? {});
-      s[today] = {'day': day, 'at': DateTime.now().millisecondsSinceEpoch};
-      return s;
-    });
+    logTrainingSession(widget.controller, exerciseName: name, dayType: day, today: today, sets: sets);
     setState(() => flash = name);
     Future.delayed(const Duration(milliseconds: 1400), () {
       if (mounted && flash == name) setState(() => flash = null);

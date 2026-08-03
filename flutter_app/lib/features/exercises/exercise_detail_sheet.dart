@@ -3,8 +3,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../shared/theme.dart';
 import '../../shared/widgets/atoms.dart';
 import '../../shared/lib/muscle_map.dart';
-import '../training/program.dart';
-import '../training/splits.dart';
+import '../training/domain/program.dart';
+import '../training/data/training_splits_data.dart';
 import 'exercise_library.dart';
 
 class ExerciseDetailSheet extends StatelessWidget {
