@@ -302,32 +302,6 @@ class Eyebrow extends StatelessWidget {
   }
 }
 
-class PageHeader extends StatelessWidget {
-  final Widget? icon;
-  final String title;
-  final String? sub;
-  const PageHeader({super.key, this.icon, required this.title, this.sub});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        children: [
-          if (icon != null) ...[IconBubble(icon: icon!, size: 40, background: T.hero), const SizedBox(width: 12)],
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, letterSpacing: -0.2, color: T.text)),
-              if (sub != null) Padding(padding: EdgeInsets.only(top: 2), child: Text(sub!, style: TextStyle(fontSize: 13, color: T.muted))),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Shared header + scroll body chrome for any full-page screen (Settings and
 /// its sub-pages, Your Plan, ...) so they all read as one consistent part of
 /// the app rather than a collection of ad-hoc screens.

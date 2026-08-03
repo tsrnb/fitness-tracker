@@ -65,17 +65,6 @@ class _RestDayScreenState extends State<RestDayScreen> with SingleTickerProvider
             padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
             child: Column(
               children: [
-                // Row(
-                //   mainAxisAlignment: MainAxisAlignment.end,
-                //   children: [
-                //     IconBubble(
-                //       icon: Icon(Icons.close, size: 18, color: T.muted),
-                //       size: 40,
-                //       background: T.surface2,
-                //       onTap: () => Navigator.of(context).maybePop(),
-                //     ),
-                //   ],
-                // ),
                 const Spacer(),
                 AnimatedBuilder(
                   animation: _breath,
