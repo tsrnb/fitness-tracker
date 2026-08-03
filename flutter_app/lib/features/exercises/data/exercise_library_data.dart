@@ -1,18 +1,7 @@
+import '../domain/exercise_info.dart';
+
 Uri ytUri(String n) => Uri.parse(
     'https://www.youtube.com/results?search_query=${Uri.encodeComponent('$n proper form technique')}');
-
-class ExerciseInfo {
-  final String group;
-  final String view;
-  final List<String> primary;
-  final List<String> secondary;
-  final String target;
-  final String desc;
-  final List<String> cues;
-  const ExerciseInfo(this.group, this.view, this.primary, this.secondary, this.target, this.desc, this.cues);
-}
-
-const List<String> groups = ['Chest', 'Back', 'Shoulders', 'Legs', 'Arms', 'Core'];
 
 /// Respects user's excluded lifts: no deadlift, RDL, walking lunge, single-arm DB row.
 final Map<String, ExerciseInfo> lib = {

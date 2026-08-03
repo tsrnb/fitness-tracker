@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../shared/theme.dart';
-import '../../shared/widgets/atoms.dart';
-import '../../shared/lib/muscle_map.dart';
-import 'exercise_library.dart';
+import '../../../shared/theme.dart';
+import '../../../shared/widgets/atoms.dart';
+import '../../../shared/lib/muscle_map.dart';
+import '../domain/exercise_info.dart';
+import '../data/exercise_library_data.dart';
 
 class LibraryScreen extends StatefulWidget {
   final ValueChanged<String> openExercise;

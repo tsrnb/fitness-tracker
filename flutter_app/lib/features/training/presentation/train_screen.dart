@@ -4,7 +4,7 @@ import '../../../shared/widgets/atoms.dart';
 import '../../../shared/lib/helpers.dart';
 import '../../../shared/lib/muscle_map.dart';
 import '../../../app/app_state.dart';
-import '../../exercises/exercise_library.dart';
+import '../../exercises/data/exercise_library_data.dart';
 import '../domain/training_split.dart';
 import '../data/training_splits_data.dart';
 import '../data/training_history_repository.dart';

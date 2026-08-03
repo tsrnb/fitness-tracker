@@ -295,3 +295,17 @@ List<String?> scheduleFromSettings(Map<String, dynamic> settings, TrainingSplit 
   }
   return split.defaultSchedule();
 }
+
+/// The first matching prescription for [exerciseName] from any split's
+/// program — used where there's no settings/active-split context (e.g. the
+/// exercise library's detail sheet) to still show a representative
+/// sets/reps starting point.
+ProgramItem? findAnyPrescription(String exerciseName) {
+  for (final split in trainingSplits) {
+    for (final d in split.dayOrder) {
+      final match = split.program[d]!.items.where((x) => x.name == exerciseName);
+      if (match.isNotEmpty) return match.first;
+    }
+  }
+  return null;
+}

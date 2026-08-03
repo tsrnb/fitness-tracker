@@ -1,4 +1,4 @@
-import '../../exercises/exercise_library.dart' as exlib;
+import '../../exercises/data/exercise_library_data.dart' as exlib;
 import '../domain/training_split.dart';
 import 'training_splits_data.dart';
 
