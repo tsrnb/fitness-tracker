@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import '../../shared/theme.dart';
-import '../../shared/widgets/atoms.dart';
-import '../../shared/widgets/trend_chart.dart';
-import '../../shared/lib/helpers.dart';
-import '../../shared/lib/macro_totals.dart';
-import '../../app/app_state.dart';
+import '../../../shared/theme.dart';
+import '../../../shared/widgets/atoms.dart';
+import '../../../shared/widgets/trend_chart.dart';
+import '../../../shared/lib/helpers.dart';
+import '../../../app/app_state.dart';
+import '../data/personal_records.dart';
+import '../data/nutrition_stats_service.dart';
 import 'activity_progress_screen.dart';
-import 'week_rings.dart';
+import 'daily_log_section.dart';
 
 class ProgressScreen extends StatefulWidget {
   final AppState app;
@@ -67,20 +68,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
       return {'d': fmtDay(e['date']), 'v': best};
     }).toList();
 
-    final prs = history.entries.map((entry) {
-      final hist = List<Map<String, dynamic>>.from(entry.value);
-      int best = 0;
-      num bestW = 0;
-      for (final e in hist) {
-        for (final x in List<Map<String, dynamic>>.from(e['sets'])) {
-          final oneRm = epley(x['weight'] as num, x['reps'] as num);
-          if (oneRm > best) best = oneRm;
-          if ((x['weight'] as num) > bestW) bestW = x['weight'] as num;
-        }
-      }
-      return {'n': entry.key, 'best': best, 'bestW': bestW};
-    }).where((p) => (p['best'] as int) > 0).toList()
-      ..sort((a, b) => (b['best'] as int).compareTo(a['best'] as int));
+    final prs = computePersonalRecords(history);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -161,7 +149,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
     ];
   }
 
-  List<Widget> _strengthTab(List<Map<String, dynamic>> strengthData, List<Map<String, dynamic>> prs, Map<String, dynamic> history) {
+  List<Widget> _strengthTab(List<Map<String, dynamic>> strengthData, List<PersonalRecord> prs, Map<String, dynamic> history) {
     return [
       Padding(
         padding: const EdgeInsets.only(bottom: 14),
@@ -221,10 +209,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
                             child: Row(children: [
                               const IconBubble(icon: Icon(Icons.emoji_events, size: 14, color: Colors.white), size: 30, background: T.hero),
                               const SizedBox(width: 10),
-                              Expanded(child: Text(p['n'] as String, style: TextStyle(fontSize: 14, color: T.text), overflow: TextOverflow.ellipsis)),
+                              Expanded(child: Text(p.name, style: TextStyle(fontSize: 14, color: T.text), overflow: TextOverflow.ellipsis)),
                             ]),
                           ),
-                          Text('${p['bestW']}kg · ~${p['best']} 1RM', style: mono(fontSize: 13, color: T.muted)),
+                          Text('${p.bestWeight}kg · ~${p.best} 1RM', style: mono(fontSize: 13, color: T.muted)),
                         ],
                       ),
                     )),
@@ -236,12 +224,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
   }
 
   List<Widget> _nutritionTab(Map<String, dynamic> diet, Map<String, dynamic> st) {
-    final Map<String, Map<String, int>> perDate = {};
-    diet.forEach((date, meals) {
-      final list = List<Map<String, dynamic>>.from(meals as List);
-      perDate[date] = sumMacros(list).toIntMap();
-    });
-
+    final perDate = nutritionTotalsByDate(diet);
     final dates = perDate.keys.toList()..sort();
 
     final periodPicker = Padding(
@@ -275,55 +258,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
     final metricLabel = metricLabels[nutriMetric]!;
     final goal = ((st[goalKeys[nutriMetric]!] as num?) ?? 0).toInt();
 
-    List<String> labels = [];
-    List<double> values = [];
-
-    if (nutriPeriod == 'day') {
-      final recent = dates.length > 30 ? dates.sublist(dates.length - 30) : dates;
-      labels = recent.map((d) => fmtDay(d)).toList();
-      values = recent.map((d) => (perDate[d]![nutriMetric] ?? 0).toDouble()).toList();
-    } else if (nutriPeriod == 'week') {
-      final Map<String, List<String>> buckets = {};
-      for (final d in dates) {
-        final dt = DateTime.parse(d);
-        final monday = dt.subtract(Duration(days: dt.weekday - 1));
-        final key = '${monday.year.toString().padLeft(4, '0')}-${monday.month.toString().padLeft(2, '0')}-${monday.day.toString().padLeft(2, '0')}';
-        buckets.putIfAbsent(key, () => []).add(d);
-      }
-      final keys = buckets.keys.toList()..sort();
-      labels = keys.map((k) => fmtDay(k)).toList();
-      values = keys.map((k) {
-        final ds = buckets[k]!;
-        final sum = ds.fold<int>(0, (s, d) => s + (perDate[d]![nutriMetric] ?? 0));
-        return sum / ds.length;
-      }).toList();
-    } else {
-      final Map<String, List<String>> buckets = {};
-      for (final d in dates) {
-        buckets.putIfAbsent(d.substring(0, 7), () => []).add(d);
-      }
-      final keys = buckets.keys.toList()..sort();
-      labels = keys;
-      values = keys.map((k) {
-        final ds = buckets[k]!;
-        final sum = ds.fold<int>(0, (s, d) => s + (perDate[d]![nutriMetric] ?? 0));
-        return sum / ds.length;
-      }).toList();
-    }
-
-    String summary;
-    if (goal > 0) {
-      final isCeiling = nutriMetric == 'kcal';
-      int hit = 0;
-      for (final d in dates) {
-        final v = perDate[d]![nutriMetric] ?? 0;
-        if (isCeiling ? v <= goal : v >= goal) hit++;
-      }
-      final verb = isCeiling ? 'at or under goal' : 'at or above goal';
-      summary = '$hit of ${dates.length} days $verb';
-    } else {
-      summary = 'Set a $metricLabel goal in Settings to track adherence.';
-    }
+    final series = nutritionSeries(perDate, dates, nutriPeriod, nutriMetric);
+    final summary = nutritionAdherenceSummary(perDate, dates, nutriMetric, metricLabel, goal);
 
     return [
       periodPicker,
@@ -335,8 +271,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Eyebrow('$metricLabel trend'),
-              if (values.length > 1)
-                SizedBox(height: 200, child: _areaChart(values, labels))
+              if (series.values.length > 1)
+                SizedBox(height: 200, child: _areaChart(series.values, series.labels))
               else
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 24),

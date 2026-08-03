@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../shared/theme.dart';
-import '../../shared/widgets/atoms.dart';
-import '../../shared/widgets/trend_chart.dart';
-import '../../shared/lib/helpers.dart';
-import '../../app/app_state.dart';
+import '../../../shared/theme.dart';
+import '../../../shared/widgets/atoms.dart';
+import '../../../shared/widgets/trend_chart.dart';
+import '../../../shared/lib/helpers.dart';
+import '../../../app/app_state.dart';
 
 class ActivityProgressScreen extends StatelessWidget {
   final AppState app;
