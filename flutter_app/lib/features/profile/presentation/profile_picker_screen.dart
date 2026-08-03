@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../shared/theme.dart';
-import '../../shared/widgets/atoms.dart';
-import '../../app/app_state.dart';
+import '../../../shared/theme.dart';
+import '../../../shared/widgets/atoms.dart';
+import '../../../app/app_state.dart';
 
 class ProfilePickerScreen extends StatelessWidget {
   final List<SimpleUser> users;
