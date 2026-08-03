@@ -23,6 +23,9 @@ class SpeechRecognitionService {
   /// utterance. [onDone] fires once the plugin considers the session over —
   /// e.g. after [SpeechListenOptions.pauseFor] of silence — so the caller
   /// can settle the UI without the user having to tap stop themselves.
+  /// [onError] fires for anything that interrupts listening (permission
+  /// revoked mid-session, no microphone, a network hiccup for the
+  /// server-backed recognizers) with a message safe to show directly.
   ///
   /// Throws [SpeechUnavailableException] if permission was denied or no
   /// recognizer is available; the caller isn't left guessing why nothing
@@ -30,11 +33,19 @@ class SpeechRecognitionService {
   Future<void> startListening({
     required void Function(String text, {required bool isFinal}) onResult,
     required void Function() onDone,
+    required void Function(String message) onError,
   }) async {
     final ready = await _speech.initialize(
+      // The web implementation (Chrome's Web Speech API) never reports a
+      // "final" result type, and the plugin's own 'done' status is
+      // suppressed whenever the latest result was non-final — so on web
+      // 'done' simply never arrives. 'notListening' fires whenever the
+      // recognizer actually stops (silence timeout, stop(), or an error)
+      // on every platform, so it's the one status that's safe to key off.
       onStatus: (status) {
-        if (status == 'done') onDone();
+        if (status == 'notListening') onDone();
       },
+      onError: (error) => onError(_describeError(error.errorMsg)),
     );
     if (!ready) {
       final permitted = await _speech.hasPermission;
@@ -54,6 +65,27 @@ class SpeechRecognitionService {
         listenFor: const Duration(seconds: 30),
       ),
     );
+  }
+
+  /// Browser/OS error codes are terse and inconsistent across platforms —
+  /// translate the ones worth calling out by name, and fall back to a
+  /// generic retry message rather than surfacing a raw code like
+  /// `"no-speech"` to the user.
+  String _describeError(String code) {
+    switch (code) {
+      case 'not-allowed':
+      case 'service-not-allowed':
+      case 'permission':
+        return "Microphone access was denied — enable it in your browser or Settings to use voice.";
+      case 'audio-capture':
+        return "No microphone found on this device.";
+      case 'network':
+        return "A network error interrupted listening — check your connection and try again.";
+      case 'no-speech':
+        return "Didn't catch that — try again.";
+      default:
+        return "Something interrupted listening — try again.";
+    }
   }
 
   bool get isListening => _speech.isListening;

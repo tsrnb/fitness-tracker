@@ -61,6 +61,18 @@ class _VoiceListenScreenState extends State<VoiceListenScreen> {
           // looking "live" when it no longer is.
           setState(() => _listening = false);
         },
+        onError: (message) {
+          if (!mounted || _stopping) return;
+          // A transcript already in hand is worth more than an error about
+          // whatever interrupted the session afterward (e.g. a late
+          // "no-speech" timeout right as the user finished talking) — only
+          // block on it if we've got nothing to show for the attempt.
+          if (_transcript.trim().isNotEmpty) return;
+          setState(() {
+            _listening = false;
+            _error = message;
+          });
+        },
       );
     } on SpeechUnavailableException catch (e) {
       if (!mounted) return;
