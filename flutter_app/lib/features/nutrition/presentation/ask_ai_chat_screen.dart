@@ -8,6 +8,7 @@ import '../domain/ai_food_item.dart';
 import '../domain/parsed_meal_item.dart';
 import '../data/ask_ai_controller.dart';
 import '../data/meal_repository.dart';
+import '../data/openai_food_service.dart' show aiModelName;
 import 'widgets/ai_gradient.dart';
 import 'widgets/chat_bits.dart';
 import 'voice_listen_screen.dart';
@@ -221,10 +222,17 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
                   const SizedBox(width: 10),
                   const AssistantOrb(size: 30, pulse: true),
                   const SizedBox(width: 10),
-                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('Ask AI', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: Colors.white)),
-                    Text('Describe a meal to log it', style: TextStyle(fontSize: 10.5, color: T.muted)),
-                  ]),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text('Ask AI', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: Colors.white)),
+                      Text('Describe a meal to log it', style: TextStyle(fontSize: 10.5, color: T.muted)),
+                    ]),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                    decoration: BoxDecoration(color: T.surface2, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(999)),
+                    child: Text(aiModelName, style: mono(fontSize: 9.5, color: T.faint)),
+                  ),
                 ]),
                 const SizedBox(height: 14),
                 Row(children: [

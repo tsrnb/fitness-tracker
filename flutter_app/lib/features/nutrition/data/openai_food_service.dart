@@ -3,6 +3,11 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../domain/ai_food_item.dart';
 
+/// The OpenAI model Ask AI's meal estimates run on — pulled out as a
+/// constant so the UI can show it (e.g. in the chat header) without
+/// duplicating the string.
+const aiModelName = 'gpt-4o-mini';
+
 /// Calls a small Cloudflare Worker (`cf-worker/`) instead of OpenAI directly.
 /// A key baked into this compiled web bundle would be scraped from the
 /// public gh-pages site and auto-revoked by OpenAI's own leaked-key
@@ -82,7 +87,7 @@ The "remember" array is separate from "items": include a food in it only when th
             Uri.parse('$_proxyBase/chat'),
             headers: _headers,
             body: jsonEncode({
-              'model': 'gpt-4o-mini',
+              'model': aiModelName,
               'temperature': 0.3,
               'response_format': {'type': 'json_object'},
               'messages': messages,
