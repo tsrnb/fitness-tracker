@@ -8,7 +8,14 @@ import '../data/exercise_library_data.dart';
 
 class ExerciseDetailSheet extends StatelessWidget {
   final String name;
-  const ExerciseDetailSheet({super.key, required this.name});
+
+  /// Set when this sheet is opened as a swap preview (long-press on a
+  /// same-muscle-group alternative) rather than from the Library or a
+  /// "tutorial" link — adds a second, primary action beneath "Watch
+  /// tutorial" so the user can commit to the swap without leaving the sheet.
+  final VoidCallback? onUseInstead;
+
+  const ExerciseDetailSheet({super.key, required this.name, this.onUseInstead});
 
   @override
   Widget build(BuildContext context) {
@@ -75,14 +82,35 @@ class ExerciseDetailSheet extends StatelessWidget {
             }),
           ),
         ),
-        PrimaryButton(
-          onTap: () => launchUrl(ytUri(name), mode: LaunchMode.externalApplication),
-          child: const Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.play_arrow, size: 18),
-            SizedBox(width: 8),
-            Text('Watch tutorial'),
-          ]),
-        ),
+        if (onUseInstead != null) ...[
+          PrimaryButton(
+            onTap: onUseInstead,
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.swap_horiz, size: 18),
+              const SizedBox(width: 8),
+              Text('Use $name instead'),
+            ]),
+          ),
+          const SizedBox(height: 10),
+          Center(
+            child: GestureDetector(
+              onTap: () => launchUrl(ytUri(name), mode: LaunchMode.externalApplication),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.play_arrow, size: 14, color: T.accent),
+                const SizedBox(width: 4),
+                Text('Watch tutorial', style: TextStyle(fontSize: 13, color: T.accent, fontWeight: FontWeight.w600)),
+              ]),
+            ),
+          ),
+        ] else
+          PrimaryButton(
+            onTap: () => launchUrl(ytUri(name), mode: LaunchMode.externalApplication),
+            child: const Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.play_arrow, size: 18),
+              SizedBox(width: 8),
+              Text('Watch tutorial'),
+            ]),
+          ),
       ],
     );
   }

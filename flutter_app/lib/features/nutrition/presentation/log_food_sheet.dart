@@ -213,7 +213,17 @@ class _LogFoodSheetState extends State<LogFoodSheet> {
           ),
           const SizedBox(height: 8),
           GestureDetector(
-            onTap: () => showAppSheet(context, BrowseFoodsSheet(app: widget.app, controller: widget.controller)),
+            onTap: () => showAppSheet(
+              context,
+              BrowseFoodsSheet(
+                app: widget.app,
+                controller: widget.controller,
+                onAddNew: () {
+                  Navigator.of(context).pop(); // the Browse foods sheet
+                  setState(() => mode = 'custom');
+                },
+              ),
+            ),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),

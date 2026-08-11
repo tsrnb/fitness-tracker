@@ -18,23 +18,28 @@ class Stepper2 extends StatelessWidget {
           onTap: onTap,
           downScale: 0.88,
           child: Container(
-            width: 40,
-            height: 40,
+            width: 34,
+            height: 34,
             alignment: Alignment.center,
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: T.line), color: T.surface2),
-            child: Icon(icon, size: 18, color: T.text),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(11), border: Border.all(color: T.line), color: T.surface2),
+            child: Icon(icon, size: 16, color: T.text),
           ),
         );
-    final displayValue = value == value.roundToDouble() ? value.round().toString() : value.toStringAsFixed(2);
+    // One decimal place, not two ("22.5", never "22.50") — the extra digit
+    // was pushing past the fixed value column below and, since nothing
+    // clipped it, visibly shoving the +/- buttons out of their usual spot
+    // any time a .5 step was on screen next to a whole number.
+    final displayValue = value == value.roundToDouble() ? value.round().toString() : value.toStringAsFixed(1);
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         btn(Icons.remove, () {
           final v = value - step;
           onChange(double.parse((v < min ? min : v).toStringAsFixed(2)));
         }),
-        const SizedBox(width: 8),
+        const SizedBox(width: 4),
         SizedBox(
-          width: 60,
+          width: 44,
           child: Column(
             children: [
               AnimatedSwitcher(
@@ -43,13 +48,19 @@ class Stepper2 extends StatelessWidget {
                   position: Tween<Offset>(begin: const Offset(0, 0.4), end: Offset.zero).animate(anim),
                   child: FadeTransition(opacity: anim, child: child),
                 ),
-                child: Text(displayValue, key: ValueKey(displayValue), style: mono(fontSize: 20, fontWeight: FontWeight.w600)),
+                // FittedBox as a hard guarantee, not just the formatting above —
+                // whatever the value renders as, it scales to fit this column
+                // instead of overflowing it, so the buttons on either side never move.
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(displayValue, key: ValueKey(displayValue), style: mono(fontSize: 18, fontWeight: FontWeight.w600)),
+                ),
               ),
               if (suffix != null) Text(suffix!, style: mono(fontSize: 11, color: T.muted)),
             ],
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 4),
         btn(Icons.add, () => onChange(double.parse((value + step).toStringAsFixed(2)))),
       ],
     );

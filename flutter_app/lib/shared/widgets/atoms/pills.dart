@@ -58,6 +58,37 @@ class ChecklistPill extends StatelessWidget {
   }
 }
 
+/// Small neutral "how much of today's eating plan is left" chip — the
+/// secondary, budget-vs-goal half of the app's two energy stats (the other
+/// being true deficit/surplus vs. maintenance, which stays the bold primary
+/// number wherever this chip appears). Deliberately always the same neutral
+/// blue regardless of over/under: whether you've got room left in today's
+/// plan isn't itself a verdict the way the true deficit number is — it's
+/// just informational, so it doesn't compete with the green/red judgment
+/// call sitting right next to it.
+class BudgetChip extends StatelessWidget {
+  final num budgetLeft; // positive = under budget, negative = over
+  final bool isToday;
+  const BudgetChip({super.key, required this.budgetLeft, this.isToday = true});
+
+  @override
+  Widget build(BuildContext context) {
+    final over = budgetLeft < 0;
+    final label = over
+        ? (isToday ? '${(-budgetLeft).round()} kcal over today\'s plan' : '${(-budgetLeft).round()} kcal over budget')
+        : (isToday ? '${budgetLeft.round()} kcal left today' : '${budgetLeft.round()} kcal under budget');
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(color: T.surface2, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(T.pill)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        const Text('🍽', style: TextStyle(fontSize: 11)),
+        const SizedBox(width: 5),
+        Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: T.blue)),
+      ]),
+    );
+  }
+}
+
 class ActionPill extends StatelessWidget {
   final String label;
   final Widget? icon;

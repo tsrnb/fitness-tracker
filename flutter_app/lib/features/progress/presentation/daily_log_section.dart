@@ -59,6 +59,10 @@ class _DailyLogSectionState extends State<DailyLogSection> {
     final activity = widget.app.data.activity;
     final calGoal = (st['calorieGoal'] as num?) ?? 2000;
     final proteinGoal = (st['proteinGoal'] as num?) ?? 150;
+    // Same maintenance figure Home and the Diet tab use for "true deficit" —
+    // pulled from the plan when one exists, falling back to the calorie
+    // goal like those other two screens do.
+    final tdee = (widget.app.data.plan != null ? widget.app.data.plan!['tdee'] : null) as num? ?? calGoal;
     final today = todayStr(st);
     final dates = _lastNDates(today, 7);
     final yesterday = dates[dates.length - 2];
@@ -68,7 +72,7 @@ class _DailyLogSectionState extends State<DailyLogSection> {
       final kcal = meals.fold<int>(0, (a, b) => a + ((b['kcal'] as num?) ?? 0).toInt());
       final protein = meals.fold<int>(0, (a, b) => a + ((b['protein'] as num?) ?? 0).toInt());
       final burned = ((activity[date] as Map?)?['kcal'] as num?) ?? 0;
-      return DayStat(date: date, kcal: kcal, protein: protein, mealsCount: meals.length, adjustedGoal: calGoal + burned, proteinGoal: proteinGoal);
+      return DayStat(date: date, kcal: kcal, protein: protein, mealsCount: meals.length, adjustedGoal: calGoal + burned, proteinGoal: proteinGoal, tdee: tdee, burned: burned);
     }).toList();
 
     int streak = 0;
@@ -157,20 +161,38 @@ class _DailyLogSectionState extends State<DailyLogSection> {
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                        Expanded(child: Text(selectedLabel, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: T.text))),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: selected.vsGoal >= 0 ? T.success.withValues(alpha: 0.16) : T.danger.withValues(alpha: 0.16),
-                            borderRadius: BorderRadius.circular(T.pill),
+                      // True deficit (primary) and budget (secondary) are
+                      // one trailing cluster, stacked and right-aligned
+                      // together — same number/wording as Home and the
+                      // Diet tab, and no longer split across two different
+                      // alignments on the same card.
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: Text(selectedLabel, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: T.text))),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: selected.trueDeficit >= 0 ? T.success.withValues(alpha: 0.16) : T.danger.withValues(alpha: 0.16),
+                                  borderRadius: BorderRadius.circular(T.pill),
+                                ),
+                                child: Text(
+                                  '${selected.trueDeficit.abs().round()} kcal ${selected.trueDeficit >= 0 ? 'deficit' : 'surplus'}',
+                                  style: mono(fontSize: 11.5, fontWeight: FontWeight.w700, color: selected.trueDeficit >= 0 ? T.success : T.danger),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: BudgetChip(budgetLeft: selected.vsGoal, isToday: selected.date == today),
+                              ),
+                            ],
                           ),
-                          child: Text(
-                            '${selected.vsGoal >= 0 ? '−' : '+'}${selected.vsGoal.abs().round()} kcal',
-                            style: mono(fontSize: 11.5, fontWeight: FontWeight.w700, color: selected.vsGoal >= 0 ? T.success : T.danger),
-                          ),
-                        ),
-                      ]),
+                        ],
+                      ),
                       const SizedBox(height: 10),
                       Row(children: [
                         Expanded(child: _statChip('${selected.kcal}', 'kcal eaten')),

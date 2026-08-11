@@ -177,6 +177,15 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
     });
   }
 
+  // Keeps these items around in the food library (Quick add) for next time —
+  // separate from [_addToLog], which only logs them against today.
+  Future<void> _saveToLibrary(AssistantResultEntry entry) async {
+    setState(() => entry.saved = true);
+    for (final i in entry.result.items) {
+      await widget.controller.addFood(i.name, i.kcal.toDouble(), i.protein.toDouble(), i.carb.toDouble(), i.fat.toDouble(), i.fiber.toDouble());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final name = widget.app.user?.name ?? '';
@@ -464,6 +473,30 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
                         Text('Add to today\'s log', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white)),
                       ]),
                     ),
+                  ),
+                ),
+              const SizedBox(height: 8),
+              if (entry.saved)
+                Center(
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.check_circle, size: 13, color: T.success),
+                    const SizedBox(width: 6),
+                    Text('Saved to Quick add', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: T.success)),
+                  ]),
+                )
+              else
+                GestureDetector(
+                  onTap: () => _saveToLibrary(entry),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(border: Border.all(color: const Color(0xFF32313B)), borderRadius: BorderRadius.circular(999)),
+                    alignment: Alignment.center,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.bookmark_border, size: 14, color: T.muted),
+                      const SizedBox(width: 6),
+                      Text('Save to Quick add', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: T.muted)),
+                    ]),
                   ),
                 ),
             ]),

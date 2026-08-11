@@ -6,6 +6,7 @@ import '../../../shared/widgets/ai_shimmer_once.dart';
 import '../../../shared/lib/helpers.dart';
 import '../../../app/app_state.dart';
 import '../../plan/data/plan_options.dart';
+import '../../training/domain/program.dart';
 import '../data/dashboard_stats.dart';
 import '../../nutrition/presentation/log_food_sheet.dart';
 import 'rest_day_screen.dart';
@@ -67,31 +68,14 @@ class DashboardScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
-                  child: HeroCard(
-                    tone: HeroTone.hero,
+                  child: _buildWorkoutHeroCard(
+                    todayDay: todayDay,
+                    exercises: exercises,
+                    loggedToday: loggedToday,
+                    sessionsThisWeek: last7,
+                    steps: (act['steps'] ?? 0) as num,
+                    stepGoal: stepGoal,
                     onTap: todayDay != null ? () => go('train', todayDay) : () => RestDayScreen.push(context),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('${todayDay ?? "Rest"}\nDay', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 19, height: 1.15)),
-                            const IconBubble(icon: Icon(Icons.fitness_center, size: 16, color: Colors.white), size: 34, background: Color(0x33FFFFFF)),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Column(
-                          children: todayDay != null
-                              ? exercises.take(2).map((ex) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 8),
-                                    child: ChecklistPill(label: ex.name, sub: '${ex.sets} × ${ex.reps}', done: loggedToday(ex.name)),
-                                  )).toList()
-                              : [ChecklistPill(label: 'Walk & recover', sub: 'Active rest', done: app.data.activity[today] != null)],
-                        ),
-                      ],
-                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -296,6 +280,143 @@ class DashboardScreen extends StatelessWidget {
   /// the user's goal, since "calories in a ring + protein in a ring" isn't
   /// actually the number that matters for every goal (fat loss cares about
   /// the deficit; gaining cares about protein + surplus).
+  /// The orange "today's workout" card — redesigned around a single
+  /// question ("what am I doing now?") instead of a cramped 2-item preview
+  /// list. Shows exactly one lift, the first unlogged one, at title size,
+  /// with a segment meter as the only reminder a full list exists; the
+  /// finished state is a genuinely different layout rather than an empty
+  /// checklist. Session-scanning still lives one tap away on the Train
+  /// screen, so nothing here is lost, just deferred.
+  Widget _buildWorkoutHeroCard({
+    required String? todayDay,
+    required List<ProgramItem> exercises,
+    required bool Function(String) loggedToday,
+    required int sessionsThisWeek,
+    required num steps,
+    required num stepGoal,
+    required VoidCallback onTap,
+  }) {
+    if (todayDay == null) {
+      return HeroCard(
+        tone: HeroTone.hero,
+        onTap: onTap,
+        child: SizedBox(
+          height: 154,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('REST DAY', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Today's job", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.6, color: Colors.white.withValues(alpha: 0.75))),
+                  const Padding(padding: EdgeInsets.only(top: 5), child: Text('Walk & recover', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 21, height: 1.15))),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 5),
+                    child: Text('${steps.round()} / ${stepGoal.round()} steps', style: mono(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.85))),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final totalSets = exercises.fold<int>(0, (a, e) => a + e.sets);
+    final loggedCount = exercises.where((e) => loggedToday(e.name)).length;
+    final allDone = exercises.isNotEmpty && loggedCount == exercises.length;
+    ProgramItem? nextEx;
+    for (final e in exercises) {
+      if (!loggedToday(e.name)) {
+        nextEx = e;
+        break;
+      }
+    }
+
+    Widget segments() => Padding(
+          padding: const EdgeInsets.only(top: 14),
+          child: Row(
+            children: List.generate(exercises.length * 2 - 1, (i) {
+              if (i.isOdd) return const SizedBox(width: 3);
+              final segIndex = i ~/ 2;
+              return Expanded(
+                child: Container(
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: segIndex < loggedCount ? Colors.white : Colors.white.withValues(alpha: 0.28),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              );
+            }),
+          ),
+        );
+
+    return HeroCard(
+      tone: HeroTone.hero,
+      onTap: onTap,
+      child: SizedBox(
+        height: 154,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('${todayDay.toUpperCase()} DAY', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+                if (allDone)
+                  const IconBubble(icon: Icon(Icons.check, size: 14, color: T.hero), size: 28, background: Colors.white)
+                else
+                  Text(
+                    loggedCount > 0 ? '$loggedCount/${exercises.length}' : '$totalSets sets',
+                    style: mono(fontSize: 11, color: Colors.white.withValues(alpha: 0.85)),
+                  ),
+              ],
+            ),
+            if (allDone)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Session done', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 21)),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text('${exercises.length} lifts · $totalSets sets', style: mono(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.85))),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      sessionsThisWeek == 1 ? '1 session this week' : '$sessionsThisWeek sessions this week',
+                      style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.82)),
+                    ),
+                  ),
+                  segments(),
+                ],
+              )
+            else if (nextEx != null)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(loggedCount > 0 ? 'NEXT UP' : 'START WITH', style: mono(fontSize: 10, color: Colors.white.withValues(alpha: 0.75)).copyWith(letterSpacing: 0.6)),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 5),
+                    child: Text(nextEx.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 21, height: 1.15)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 5),
+                    child: Text('${nextEx.sets} × ${nextEx.reps}', style: mono(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.85))),
+                  ),
+                  segments(),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildStatsCard({
     required dynamic goalType,
     required int balance,
@@ -306,6 +427,15 @@ class DashboardScreen extends StatelessWidget {
     required num protToday,
     required num protGoal,
   }) {
+    // Two different energy numbers live on this card family: [balance] is
+    // the *true* deficit/surplus vs. maintenance (TDEE) — the number that
+    // actually predicts weight change, always the bold primary stat below.
+    // [budgetLeft] is just "how much of today's calorie goal is left" —
+    // useful, but secondary, so it's always the small neutral BudgetChip,
+    // never colored as a verdict of its own. Same split on the Diet tab and
+    // Progress → Daily log, so "true deficit" means the same thing and
+    // looks the same everywhere it shows up.
+    final budgetLeft = adjustedCalGoal - kcalToday;
     if (goalType == 'fatLoss') {
       final isDeficit = balance >= 0;
       final amount = balance.abs();
@@ -313,23 +443,26 @@ class DashboardScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Eyebrow("Today's energy balance"),
+            Eyebrow(isDeficit ? 'True deficit' : 'True surplus'),
             Row(
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
                 Text('$amount', style: mono(fontSize: 34, fontWeight: FontWeight.w800, color: isDeficit ? T.success : T.danger)),
                 const SizedBox(width: 8),
-                Text(isDeficit ? 'kcal deficit' : 'kcal surplus', style: Type.h3),
+                Text('kcal', style: Type.h3),
               ],
             ),
-            const SizedBox(height: 6),
-            Text(
-              burnedToday > 0
-                  ? 'vs ~${tdee.round()} maintenance · ${burnedToday.round()} kcal from activity'
-                  : 'vs ~${tdee.round()} maintenance',
-              style: Type.caption,
+            Padding(
+              padding: const EdgeInsets.only(top: 3, bottom: 10),
+              child: Text(
+                burnedToday > 0
+                    ? 'vs ~${tdee.round()} maintenance · ${burnedToday.round()} kcal from activity'
+                    : 'vs ~${tdee.round()} maintenance',
+                style: Type.caption,
+              ),
             ),
+            BudgetChip(budgetLeft: budgetLeft),
           ],
         ),
       );
@@ -351,12 +484,10 @@ class DashboardScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Eyebrow('Energy surplus', margin: EdgeInsets.only(bottom: 6)),
+                  Eyebrow(isSurplus ? 'True surplus' : 'True deficit', margin: const EdgeInsets.only(bottom: 6)),
                   Text('$amount', style: mono(fontSize: 30, fontWeight: FontWeight.w800, color: isSurplus ? T.success : T.danger)),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(isSurplus ? 'kcal surplus' : 'kcal deficit', style: Type.caption),
-                  ),
+                  Padding(padding: const EdgeInsets.only(top: 2, bottom: 8), child: Text('kcal', style: Type.caption)),
+                  BudgetChip(budgetLeft: budgetLeft),
                 ],
               ),
             ),

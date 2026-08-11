@@ -113,17 +113,55 @@ class _NutritionScreenState extends State<NutritionScreen> {
         Padding(
           padding: const EdgeInsets.only(bottom: 14),
           child: AppCard(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+            child: Column(
               children: [
-                Column(children: [
-                  Ring(value: kcal.toDouble(), goal: adjustedGoal.toDouble(), size: 100, color: T.hero),
-                  Padding(padding: const EdgeInsets.only(top: 6), child: Text('Calories', style: TextStyle(fontSize: 11, color: T.muted))),
-                ]),
-                Column(children: [
-                  Ring(value: prot.toDouble(), goal: protGoal.toDouble(), size: 100, unit: 'g', color: T.blue),
-                  Padding(padding: const EdgeInsets.only(top: 6), child: Text('Protein', style: TextStyle(fontSize: 11, color: T.muted))),
-                ]),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    Column(children: [
+                      Ring(value: kcal.toDouble(), goal: adjustedGoal.toDouble(), size: 100, color: T.hero),
+                      Padding(padding: const EdgeInsets.only(top: 6), child: Text('Calories', style: TextStyle(fontSize: 11, color: T.muted))),
+                    ]),
+                    Column(children: [
+                      Ring(value: prot.toDouble(), goal: protGoal.toDouble(), size: 100, unit: 'g', color: T.blue),
+                      Padding(padding: const EdgeInsets.only(top: 6), child: Text('Protein', style: TextStyle(fontSize: 11, color: T.muted))),
+                    ]),
+                  ],
+                ),
+                // True deficit vs. maintenance lives here, under the ring
+                // it's actually about — same number/wording as Home and
+                // Progress → Daily log — instead of floating alone between
+                // Macros and Water further down the page. The ring above
+                // stays a budget-vs-goal view (unchanged); the BudgetChip
+                // below is that same budget number, demoted to a small
+                // neutral secondary instead of competing with the primary.
+                Container(
+                  margin: const EdgeInsets.only(top: 16),
+                  padding: const EdgeInsets.only(top: 14),
+                  decoration: BoxDecoration(border: Border(top: BorderSide(color: T.line))),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text('${deficit.abs()}', style: mono(fontSize: 19, fontWeight: FontWeight.w800, color: deficit >= 0 ? T.success : T.danger)),
+                          const SizedBox(width: 6),
+                          Text('kcal ${deficit >= 0 ? 'true deficit' : 'true surplus'}', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: T.text)),
+                        ],
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2, bottom: 8),
+                        child: Text(
+                          'vs ~${tdee.round()} maintenance${burned > 0 ? ' (+${burned.round()} from activity)' : ''}',
+                          style: TextStyle(fontSize: 11, color: T.muted),
+                        ),
+                      ),
+                      BudgetChip(budgetLeft: adjustedGoal - kcal),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -140,16 +178,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
         _macroBar(label: 'Fat', value: fat, goal: fatGoal, color: T.lav),
         _macroBar(label: 'Fiber', value: fiber, goal: fiberGoal, color: _fiberColor),
         const SizedBox(height: 2),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: Center(
-            child: Text(
-              '${deficit.abs()} kcal ${deficit >= 0 ? 'deficit' : 'surplus'} · vs ~${tdee.round()} maintenance${burned > 0 ? ' (+${burned.round()} from activity)' : ''}',
-              style: TextStyle(fontSize: 12, color: T.muted),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
         Padding(
           padding: const EdgeInsets.only(bottom: 14),
           child: AppCard(

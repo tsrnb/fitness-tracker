@@ -21,6 +21,10 @@ class AssistantTypingEntry extends ChatEntry {}
 class AssistantResultEntry extends ChatEntry {
   final AiFoodParseResult result;
   bool added = false;
+  // Whether these items have been saved to the food library (Quick add) —
+  // independent of [added], since logging today's meal and keeping the item
+  // around for next time are two different asks.
+  bool saved = false;
   AssistantResultEntry(this.result);
 }
 

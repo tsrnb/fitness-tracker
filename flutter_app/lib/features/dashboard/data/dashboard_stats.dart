@@ -3,6 +3,7 @@ import '../../../shared/lib/helpers.dart';
 import '../../../shared/lib/macro_totals.dart';
 import '../../training/domain/program.dart';
 import '../../training/data/training_splits_data.dart';
+import '../../training/data/exercise_swaps.dart';
 
 /// Everything the Dashboard's hero row, stats card, and weekly-sessions card
 /// need for "today" — computed once so `build()` just renders it instead of
@@ -50,7 +51,9 @@ DashboardSnapshot computeDashboardSnapshot(AppState app) {
   final jsDow = DateTime.now().weekday % 7; // JS getDay(): 0=Sun..6=Sat
   final split = activeSplit(st);
   final todayDay = scheduleFromSettings(st, split)[jsDow];
-  final exercises = todayDay != null ? split.program[todayDay]!.items : <ProgramItem>[];
+  final exercises = todayDay != null
+      ? applySwaps(split.program[todayDay]!.items, swapsForDay(st, split.id, todayDay))
+      : <ProgramItem>[];
 
   final meals = List<Map<String, dynamic>>.from(app.data.diet[today] ?? []);
   final todayTotals = sumMacros(meals);

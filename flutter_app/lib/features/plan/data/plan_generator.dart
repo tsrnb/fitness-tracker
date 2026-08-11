@@ -2,7 +2,25 @@ import '../../../shared/lib/helpers.dart';
 import '../domain/plan.dart';
 import 'plan_options.dart';
 
+/// The lowest calorie goal this app will ever set, regardless of how big a
+/// deficit is requested — `max(1.2×BMR, the flat 1200/1500 minimum by sex)`.
+/// 1.2×BMR alone can dip under that flat minimum for someone with a low BMR
+/// (light, small), under-protecting exactly who it's meant to protect;
+/// taking whichever is higher covers both. Neither number is a citation —
+/// see the Settings pace card's own notes for that honesty.
+int safetyFloorKcal(double bmr, String sex) {
+  final flat = sex == 'female' ? 1200.0 : 1500.0;
+  final scaled = 1.2 * bmr;
+  return round10(scaled > flat ? scaled : flat);
+}
+
 /// Coach: generates the full training/nutrition plan from onboarding/settings profile data.
+///
+/// [paceKcal] is the direct deficit (fat loss) or surplus (muscle gain) from
+/// the Settings pace slider, 100–1000 / 150–500 respectively. When null,
+/// falls back to the original behavior of deriving a pace from
+/// [targetWeight]/[targetDate] — onboarding and the training-plan chooser
+/// don't set a pace yet, so they're unaffected.
 Plan generatePlan({
   required double currentWeight,
   required double targetWeight,
@@ -14,6 +32,7 @@ Plan generatePlan({
   required String dietPref,
   required String targetDate,
   int calorieBuffer = 0,
+  num? paceKcal,
 }) {
   final kg = currentWeight, tgt = targetWeight, cm = height;
   final male = sex != 'female';
@@ -30,34 +49,64 @@ Plan generatePlan({
   bool feasible = true;
   String? suggestedDate;
   String headline;
+  int dailyPace = 0;
+  bool paceCapped = false;
+  int floorKcal = 0;
+  String? tentativeDate;
 
   if (goalType == 'fatLoss') {
     final kgToLose = (kg - tgt) > 0 ? (kg - tgt) : 0;
-    final reqDeficit = (kgToLose * 7700) / useDays;
-    final safeMax = (0.25 * tdee) < 850 ? 0.25 * tdee : 850;
-    final deficitRaw = reqDeficit > 0 ? reqDeficit : 400;
-    final deficit = clamp(deficitRaw, 250, safeMax);
-    calorieGoal = round10(tdee - deficit > 1.2 * bmr ? tdee - deficit : 1.2 * bmr);
-    weeklyRate = double.parse((((tdee - calorieGoal) * 7) / 7700).toStringAsFixed(2));
-    feasible = reqDeficit <= safeMax + 1;
-    if (!feasible) {
-      final need = ((kgToLose * 7700) / safeMax).ceil();
-      suggestedDate = DateTime.now().add(Duration(days: need)).toIso8601String().substring(0, 10);
+    floorKcal = safetyFloorKcal(bmr, sex);
+    double deficit;
+    if (paceKcal != null) {
+      deficit = paceKcal.toDouble().clamp(100, 1000).toDouble();
+    } else {
+      final reqDeficit = (kgToLose * 7700) / useDays;
+      final safeMax = (0.25 * tdee) < 850 ? 0.25 * tdee : 850;
+      final deficitRaw = reqDeficit > 0 ? reqDeficit : 400;
+      deficit = clamp(deficitRaw, 250, safeMax).toDouble();
+      feasible = reqDeficit <= safeMax + 1;
+      if (!feasible) {
+        final need = ((kgToLose * 7700) / safeMax).ceil();
+        suggestedDate = DateTime.now().add(Duration(days: need)).toIso8601String().substring(0, 10);
+      }
     }
-    headline = 'Lose ~${weeklyRate}kg/week in a ${(tdee - calorieGoal).round()} kcal daily deficit.';
+    // The requested pace always applies exactly as asked — no silent
+    // clamping to the safety floor. [paceCapped] just flags that this
+    // deficit pushes the goal under the floor, so the UI can warn about it
+    // instead of quietly overriding what was chosen.
+    calorieGoal = round10(tdee - deficit);
+    weeklyRate = double.parse((((tdee - calorieGoal) * 7) / 7700).toStringAsFixed(2));
+    dailyPace = (tdee - calorieGoal).round();
+    paceCapped = calorieGoal < floorKcal;
+    if (kgToLose > 0 && dailyPace > 0) {
+      final need = ((kgToLose * 7700) / dailyPace).ceil();
+      tentativeDate = DateTime.now().add(Duration(days: need)).toIso8601String().substring(0, 10);
+    }
+    headline = 'Lose ~${weeklyRate}kg/week in a $dailyPace kcal daily deficit.';
   } else if (goalType == 'weightGain') {
     final kgToGain = (tgt - kg) > 0 ? (tgt - kg) : 0;
-    final reqSurplus = (kgToGain * 7700) / useDays;
-    final surplusRaw = reqSurplus > 0 ? reqSurplus : 300;
-    final surplus = clamp(surplusRaw, 150, 500);
+    double surplus;
+    if (paceKcal != null) {
+      surplus = paceKcal.toDouble().clamp(150, 500).toDouble();
+    } else {
+      final reqSurplus = (kgToGain * 7700) / useDays;
+      final surplusRaw = reqSurplus > 0 ? reqSurplus : 300;
+      surplus = clamp(surplusRaw, 150, 500).toDouble();
+      feasible = reqSurplus <= 500 + 1;
+      if (!feasible) {
+        final need = ((kgToGain * 7700) / 500).ceil();
+        suggestedDate = DateTime.now().add(Duration(days: need)).toIso8601String().substring(0, 10);
+      }
+    }
     calorieGoal = round10(tdee + surplus);
     weeklyRate = double.parse(((surplus * 7) / 7700).toStringAsFixed(2));
-    feasible = reqSurplus <= 500 + 1;
-    if (!feasible) {
-      final need = ((kgToGain * 7700) / 500).ceil();
-      suggestedDate = DateTime.now().add(Duration(days: need)).toIso8601String().substring(0, 10);
+    dailyPace = surplus.round();
+    if (kgToGain > 0) {
+      final need = ((kgToGain * 7700) / surplus).ceil();
+      tentativeDate = DateTime.now().add(Duration(days: need)).toIso8601String().substring(0, 10);
     }
-    headline = 'Gain ~${weeklyRate}kg/week in a ${(calorieGoal - tdee).round()} kcal daily surplus (lean bulk).';
+    headline = 'Gain ~${weeklyRate}kg/week in a $dailyPace kcal daily surplus (lean bulk).';
   } else {
     calorieGoal = round10(tdee);
     weeklyRate = 0;
@@ -113,6 +162,10 @@ Plan generatePlan({
     cardioNote: cardioNote,
     splitNote: splitNote,
     meals: meals,
+    dailyPace: dailyPace,
+    paceCapped: paceCapped,
+    safetyFloorKcal: floorKcal,
+    tentativeDate: tentativeDate,
   );
 }
 
@@ -126,6 +179,11 @@ Plan buildPlanFromSettings(Map<String, dynamic> settings, {String? goalType}) {
   final targetWeight = double.tryParse('${settings['targetWeight'] ?? ''}') ?? currentWeight;
   final height = double.tryParse('${settings['height'] ?? ''}') ?? 0;
   final age = double.tryParse('${settings['age'] ?? ''}') ?? 0;
+  final effectiveGoal = goalType ?? settings['goalType'] ?? 'fatLoss';
+  // Kept as two separate keys (rather than one shared "pace") so switching
+  // goal types doesn't leak a fat-loss deficit in as a muscle-gain surplus
+  // or vice versa — each remembers its own last-set pace independently.
+  final paceKey = effectiveGoal == 'weightGain' ? 'paceSurplusKcal' : 'paceDeficitKcal';
   return generatePlan(
     currentWeight: currentWeight,
     targetWeight: targetWeight,
@@ -133,9 +191,10 @@ Plan buildPlanFromSettings(Map<String, dynamic> settings, {String? goalType}) {
     age: age,
     sex: settings['sex'] ?? 'male',
     activity: settings['activity'] ?? 'moderate',
-    goalType: goalType ?? settings['goalType'] ?? 'fatLoss',
+    goalType: effectiveGoal,
     dietPref: settings['dietPref'] ?? 'veg',
     targetDate: settings['targetDate'] ?? '',
     calorieBuffer: (settings['calorieBuffer'] as num?)?.toInt() ?? 0,
+    paceKcal: settings[paceKey] as num?,
   );
 }

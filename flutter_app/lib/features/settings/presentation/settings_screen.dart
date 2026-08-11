@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../../shared/theme.dart';
 import '../../../shared/widgets/atoms.dart';
 import '../../../shared/widgets/pressable_scale.dart';
@@ -15,6 +16,7 @@ import 'widgets/settings_fields.dart';
 import 'widgets/settings_rows.dart';
 import 'widgets/data_action_card.dart';
 import 'widgets/day_boundary_sheet.dart';
+import 'widgets/pace_slider.dart';
 
 /// Full-page Settings, replacing the old modal sheet. A private nested
 /// [Navigator] gives each group (Personal, Goals, Macros, Diet, Appearance,
@@ -49,6 +51,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     f['carbGoal'] ??= plan?['carbGoal'] ?? 0;
     f['fatGoal'] ??= plan?['fatGoal'] ?? 0;
     f['fiberGoal'] ??= plan?['fiberGoal'] ?? 0;
+    // Seed the pace slider from whatever this plan is already running at
+    // (if it was generated the old target-date-derived way, that's still a
+    // sensible starting point), falling back to a plain moderate default.
+    final planDailyPace = (plan?['dailyPace'] as num?)?.toInt();
+    final currentGoalType = (f['goalType'] as String?) ?? 'fatLoss';
+    f['paceDeficitKcal'] ??= (currentGoalType == 'fatLoss' ? planDailyPace : null) ?? 500;
+    f['paceSurplusKcal'] ??= (currentGoalType == 'weightGain' ? planDailyPace : null) ?? 300;
   }
 
   void set(String key, dynamic value) => setState(() => f[key] = value);
@@ -330,6 +339,202 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// The deficit/surplus slider — direct input instead of derived from
+  /// target weight/date, with the plan (calorie goal, weekly rate, safety
+  /// floor, tentative goal date) recalculated live off [f] on every drag.
+  /// Absent for `maintain`, which has no pace to set.
+  Widget _paceCard(BuildContext context) {
+    final goal = (f['goalType'] as String?) ?? 'fatLoss';
+    if (goal != 'fatLoss' && goal != 'weightGain') return _maintainPaceCard();
+
+    final isLoss = goal == 'fatLoss';
+    final paceKey = isLoss ? 'paceDeficitKcal' : 'paceSurplusKcal';
+    final min = isLoss ? 100.0 : 150.0;
+    final max = isLoss ? 1000.0 : 500.0;
+    final value = ((f[paceKey] as num?) ?? (isLoss ? 500 : 300)).toDouble().clamp(min, max);
+    final plan = _generate();
+
+    final String band;
+    final Color bandColor;
+    if (isLoss) {
+      band = value <= 400 ? 'Gentle' : value <= 700 ? 'Moderate' : 'Aggressive';
+      bandColor = value <= 400 ? T.success : value <= 700 ? T.accent : T.danger;
+    } else {
+      band = value <= 250 ? 'Lean' : value <= 380 ? 'Standard' : 'Fast';
+      bandColor = value <= 250 ? T.success : value <= 380 ? T.accent : T.danger;
+    }
+    final ceiling = isLoss ? (plan.tdee - plan.safetyFloorKcal).toDouble() : null;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: T.surface, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(T.rL)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(isLoss ? 'Daily deficit' : 'Daily surplus', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: T.text)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(color: bandColor.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(T.pill)),
+                child: Text(band, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: bandColor)),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 3, bottom: 14),
+            child: Text(
+              isLoss
+                  ? "How hard to push below maintenance, every day. The muted zone past the marker is below this app's safety minimum."
+                  : 'How far above maintenance to eat. Faster gain tends to mean more of it is fat, not muscle.',
+              style: TextStyle(fontSize: 11.5, color: T.muted, height: 1.5),
+            ),
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text('${value.round()}', style: mono(fontSize: 30, fontWeight: FontWeight.w800, color: T.text)),
+              const SizedBox(width: 7),
+              Text('kcal / day ${isLoss ? 'below' : 'above'} maintenance', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: T.muted)),
+            ],
+          ),
+          PaceSlider(min: min, max: max, value: value, ceiling: ceiling, onChanged: (v) => set(paceKey, v.round())),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('${min.round()}', style: mono(fontSize: 10, color: T.faint)),
+              Text(isLoss ? 'Gentle · Moderate · Aggressive' : 'Lean · Standard · Fast', style: mono(fontSize: 9.5, color: T.faint)),
+              Text('${max.round()}', style: mono(fontSize: 10, color: T.faint)),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(children: [
+            Expanded(child: _paceStat('Calorie goal', '${plan.calorieGoal}')),
+            const SizedBox(width: 8),
+            Expanded(child: _paceStat('Weekly rate', '${plan.weeklyRate.toStringAsFixed(2)} kg')),
+          ]),
+          if (isLoss && plan.paceCapped)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Container(
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(color: T.danger.withValues(alpha: 0.1), border: Border.all(color: T.danger.withValues(alpha: 0.32)), borderRadius: BorderRadius.circular(10)),
+                child: Text.rich(
+                  TextSpan(style: TextStyle(fontSize: 11, color: T.text, height: 1.5), children: [
+                    TextSpan(text: '⚑ That\'s aggressive. ', style: TextStyle(fontWeight: FontWeight.w700, color: T.danger)),
+                    TextSpan(
+                        text:
+                            "${plan.calorieGoal} kcal/day is below this app's built-in safety minimum (${plan.safetyFloorKcal} kcal). You can still use it — nothing's stopping you — just know it's past what's usually recommended."),
+                  ]),
+                ),
+              ),
+            ),
+          if (!isLoss && band == 'Fast')
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Container(
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(color: T.blue.withValues(alpha: 0.1), border: Border.all(color: T.blue.withValues(alpha: 0.32)), borderRadius: BorderRadius.circular(10)),
+                child: Text('ⓘ More of this is likely fat, not muscle. Most people get a better ratio staying under ~350 kcal/day.',
+                    style: TextStyle(fontSize: 11, color: T.text, height: 1.5)),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: plan.tentativeDate != null
+                ? Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(color: T.accentDim, border: Border.all(color: T.accentSoft), borderRadius: BorderRadius.circular(T.rM)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('🎯 TENTATIVE GOAL DATE', style: mono(fontSize: 10, fontWeight: FontWeight.w800, color: T.accent).copyWith(letterSpacing: 0.6)),
+                        Padding(padding: const EdgeInsets.only(top: 4), child: Text(_fmtGoalDate(plan.tentativeDate!), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: T.text))),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 5),
+                          child: Text('If kept up every day — not a promise. Recalculates as you move the slider.', style: TextStyle(fontSize: 11, color: T.muted, height: 1.5)),
+                        ),
+                      ],
+                    ),
+                  )
+                // No target weight set above (fat loss: below) the current
+                // one, so there's no gap to project a date from — say why,
+                // instead of just leaving the date silently missing.
+                : Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(color: T.surface2, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(T.rM)),
+                    child: Text(
+                      isLoss
+                          ? 'Set a target weight below your current one (in Personal details) to see a tentative goal date.'
+                          : 'Set a target weight above your current one (in Personal details) to see a tentative goal date.',
+                      style: TextStyle(fontSize: 12, color: T.muted, height: 1.5),
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _paceStat(String label, String value) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        decoration: BoxDecoration(color: T.surface2, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(T.rM)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.4, color: T.faint)),
+            Padding(padding: const EdgeInsets.only(top: 3), child: Text(value, style: mono(fontSize: 14, fontWeight: FontWeight.w700, color: T.text))),
+          ],
+        ),
+      );
+
+  /// Maintain has no pace to set — rather than leave a blank gap in the
+  /// same slot, a quiet static card states the one number that's still
+  /// true: today's maintenance calories.
+  Widget _maintainPaceCard() {
+    final plan = _generate();
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: T.surface2, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(T.rL)),
+      child: Column(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: T.surface, border: Border.all(color: T.line), shape: BoxShape.circle),
+            child: const Text('⚖️', style: TextStyle(fontSize: 16)),
+          ),
+          const SizedBox(height: 12),
+          Text('Nothing to pace', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: T.text)),
+          Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 14),
+            child: Text(
+              "Maintain isn't chasing a number up or down, so there's no deficit or surplus to dial in — just eating around maintenance.",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: T.muted, height: 1.6),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(color: T.surface, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(T.rM)),
+            child: Column(children: [
+              Text('${plan.calorieGoal}', style: mono(fontSize: 20, fontWeight: FontWeight.w800, color: T.text)),
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text('kcal/day maintenance', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: T.faint)),
+              ),
+            ]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _fmtGoalDate(String iso) => DateFormat('EEE, MMM d, yyyy').format(DateTime.parse(iso));
+
   Widget _goalsPage(BuildContext context) {
     return pageScaffold(
       context: context,
@@ -339,6 +544,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           settingsSegmented('Goal', (f['goalType'] as String?) ?? 'fatLoss', goalOptions, (v) => set('goalType', v)),
+          const Eyebrow('Pace'),
+          _paceCard(context),
+          const SizedBox(height: 12),
           settingsSegmented('Activity', (f['activity'] as String?) ?? 'moderate', const [
             MapEntry('sedentary', 'Sedentary'),
             MapEntry('light', 'Light'),

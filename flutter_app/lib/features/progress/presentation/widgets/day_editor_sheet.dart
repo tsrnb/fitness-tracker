@@ -148,9 +148,12 @@ class _DayEditorSheetState extends State<DayEditorSheet> {
               padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(color: T.surface2, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(11)),
               alignment: Alignment.center,
+              // No sign-flipping — a negative (over-budget) number naturally
+              // prints its own "-", so what's on screen matches the sign
+              // used everywhere else this budget figure shows up.
               child: Column(children: [
-                Text('${vsGoal >= 0 ? '−' : '+'}${vsGoal.abs().round()}', style: mono(fontSize: 15, fontWeight: FontWeight.w700, color: vsGoal >= 0 ? T.success : T.danger)),
-                Padding(padding: const EdgeInsets.only(top: 2), child: Text('vs goal', style: TextStyle(fontSize: 9.5, color: T.muted))),
+                Text('${vsGoal.round()}', style: mono(fontSize: 15, fontWeight: FontWeight.w700, color: vsGoal >= 0 ? T.success : T.danger)),
+                Padding(padding: const EdgeInsets.only(top: 2), child: Text('kcal budget', style: TextStyle(fontSize: 9.5, color: T.muted))),
               ]),
             ),
           ),
