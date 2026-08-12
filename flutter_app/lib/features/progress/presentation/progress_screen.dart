@@ -150,47 +150,61 @@ class _ProgressScreenState extends State<ProgressScreen> {
   }
 
   List<Widget> _strengthTab(List<Map<String, dynamic>> strengthData, List<PersonalRecord> prs, Map<String, dynamic> history) {
+    if (history.keys.isEmpty) {
+      return [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Text('Log workouts to track strength.', style: TextStyle(color: T.muted, fontSize: 13)),
+        ),
+      ];
+    }
+    final exercisePicker = SizedBox(
+      height: 40,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: history.keys.map((n) {
+          final active = exSel == n;
+          return GestureDetector(
+            onTap: () => setState(() => exSel = n),
+            child: Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+              decoration: BoxDecoration(
+                color: active ? T.hero : T.surface,
+                border: Border.all(color: active ? T.hero : T.line),
+                borderRadius: BorderRadius.circular(T.pill),
+              ),
+              alignment: Alignment.center,
+              child: Text(n, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: active ? Colors.white : T.text)),
+            ),
+          );
+        }).toList(),
+      ),
+    );
     return [
+      // Exercise picker and its trend chart grouped in one card — same
+      // "controls travel with the chart they drive" grouping as Nutrition's
+      // period/metric pickers, instead of the picker floating loose above it.
       Padding(
         padding: const EdgeInsets.only(bottom: 14),
-        child: history.keys.isEmpty
-            ? Text('Log workouts to track strength.', style: TextStyle(color: T.muted, fontSize: 13))
-            : SizedBox(
-                height: 40,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: history.keys.map((n) {
-                    final active = exSel == n;
-                    return GestureDetector(
-                      onTap: () => setState(() => exSel = n),
-                      child: Container(
-                        margin: const EdgeInsets.only(right: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: active ? T.hero : T.surface,
-                          border: Border.all(color: active ? T.hero : T.line),
-                          borderRadius: BorderRadius.circular(T.pill),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(n, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: active ? Colors.white : T.text)),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-      ),
-      if (strengthData.isNotEmpty)
-        AppCard(
+        child: AppCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Eyebrow('Estimated 1RM · $exSel'),
-              SizedBox(height: 200, child: _lineChart(strengthData.map((e) => (e['v'] as int).toDouble()).toList(), strengthData.map((e) => e['d'] as String).toList())),
+              exercisePicker,
+              const SizedBox(height: 14),
+              if (strengthData.isNotEmpty) ...[
+                Eyebrow('Estimated 1RM · $exSel'),
+                SizedBox(height: 200, child: _lineChart(strengthData.map((e) => (e['v'] as int).toDouble()).toList(), strengthData.map((e) => e['d'] as String).toList())),
+              ] else
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: Text('No logged sets yet for this lift.', style: TextStyle(color: T.muted, fontSize: 13))),
+                ),
             ],
           ),
-        )
-      else
-        AppCard(child: Center(child: Padding(padding: EdgeInsets.all(12), child: Text('No logged sets yet for this lift.', style: TextStyle(color: T.muted, fontSize: 13))))),
+        ),
+      ),
       if (prs.isNotEmpty)
         Padding(
           padding: const EdgeInsets.only(top: 14),
@@ -227,6 +241,15 @@ class _ProgressScreenState extends State<ProgressScreen> {
     final perDate = nutritionTotalsByDate(diet);
     final dates = perDate.keys.toList()..sort();
 
+    // Today (and quick edits to recent days) is what people open Nutrition
+    // for — it leads. The period/metric trend is analysis, not the reason
+    // for the visit, so it's grouped as one card below instead of gating
+    // the daily log behind a scroll.
+    final dailyLog = Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: DailyLogSection(app: widget.app, controller: widget.controller),
+    );
+
     final periodPicker = Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: PillTabs(
@@ -247,9 +270,17 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
     if (dates.isEmpty) {
       return [
-        periodPicker,
-        metricPicker,
-        AppCard(child: Center(child: Padding(padding: const EdgeInsets.all(12), child: Text('Log meals to see nutrition trends.', style: TextStyle(color: T.muted, fontSize: 13))))),
+        dailyLog,
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              periodPicker,
+              metricPicker,
+              Center(child: Padding(padding: const EdgeInsets.all(12), child: Text('Log meals to see nutrition trends.', style: TextStyle(color: T.muted, fontSize: 13)))),
+            ],
+          ),
+        ),
       ];
     }
 
@@ -262,29 +293,29 @@ class _ProgressScreenState extends State<ProgressScreen> {
     final summary = nutritionAdherenceSummary(perDate, dates, nutriMetric, metricLabel, goal);
 
     return [
-      periodPicker,
-      metricPicker,
-      Padding(
-        padding: const EdgeInsets.only(bottom: 18),
-        child: AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Eyebrow('$metricLabel trend'),
-              if (series.values.length > 1)
-                SizedBox(height: 200, child: _areaChart(series.values, series.labels))
-              else
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: Text('Log meals across more days to see your trend.', style: TextStyle(color: T.muted, fontSize: 13))),
-                ),
-              const SizedBox(height: 12),
-              Text(summary, style: TextStyle(color: T.muted, fontSize: 13, fontWeight: FontWeight.w600)),
-            ],
-          ),
+      dailyLog,
+      // Period/metric pickers grouped in the same card as the chart they
+      // drive — same "controls travel with the chart" grouping now used on
+      // the Strength tab's exercise picker, instead of floating loose above.
+      AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            periodPicker,
+            metricPicker,
+            Eyebrow('$metricLabel trend'),
+            if (series.values.length > 1)
+              SizedBox(height: 200, child: _areaChart(series.values, series.labels))
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: Text('Log meals across more days to see your trend.', style: TextStyle(color: T.muted, fontSize: 13))),
+              ),
+            const SizedBox(height: 12),
+            Text(summary, style: TextStyle(color: T.muted, fontSize: 13, fontWeight: FontWeight.w600)),
+          ],
         ),
       ),
-      DailyLogSection(app: widget.app, controller: widget.controller),
     ];
   }
 
