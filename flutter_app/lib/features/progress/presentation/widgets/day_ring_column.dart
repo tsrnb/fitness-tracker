@@ -10,7 +10,11 @@ class DayRingColumn extends StatefulWidget {
   final bool bothHit;
   final bool empty;
   final bool active;
+  final bool peeked;
+  final LayerLink link;
   final VoidCallback onTap;
+  final VoidCallback onHoldStart;
+  final VoidCallback onHoldEnd;
   const DayRingColumn({
     super.key,
     required this.index,
@@ -20,7 +24,11 @@ class DayRingColumn extends StatefulWidget {
     required this.bothHit,
     required this.empty,
     required this.active,
+    required this.peeked,
+    required this.link,
     required this.onTap,
+    required this.onHoldStart,
+    required this.onHoldEnd,
   });
 
   @override
@@ -66,9 +74,12 @@ class _DayRingColumnState extends State<DayRingColumn> with SingleTickerProvider
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: widget.onTap,
+      onLongPressStart: (_) => widget.onHoldStart(),
+      onLongPressEnd: (_) => widget.onHoldEnd(),
+      onLongPressCancel: widget.onHoldEnd,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        width: 52,
+        width: 56,
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
           color: widget.active ? T.surface : Colors.transparent,
@@ -79,18 +90,31 @@ class _DayRingColumnState extends State<DayRingColumn> with SingleTickerProvider
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(widget.label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: widget.active ? T.text : T.muted)),
-            const SizedBox(height: 6),
-            SizedBox(
-              width: 44,
-              height: 44,
-              child: AnimatedBuilder(
-                animation: _c,
-                builder: (context, _) => Stack(alignment: Alignment.center, children: [
-                  CustomPaint(size: const Size(44, 44), painter: DualRingPainter(outerPct: _outer.value, innerPct: _inner.value)),
-                  if (widget.bothHit)
-                    Transform.scale(scale: _checkScale.value, child: const Icon(Icons.check_circle, size: 15, color: T.success)),
-                  if (widget.empty) Text('—', style: TextStyle(fontSize: 12, color: T.faint)),
-                ]),
+            const SizedBox(height: 7),
+            // The ring itself is the long-press anchor — a CompositedTransformTarget
+            // so the floating peek card (built by the parent, inserted into the
+            // Overlay) can track its exact on-screen position, including while
+            // this strip is mid-scroll.
+            CompositedTransformTarget(
+              link: widget.link,
+              child: SizedBox(
+                width: 56,
+                height: 56,
+                child: AnimatedBuilder(
+                  animation: _c,
+                  builder: (context, _) => Stack(alignment: Alignment.center, children: [
+                    // While peeked, the real ring is hidden — the floating
+                    // overlay stands in for it — rather than drawing both at
+                    // once.
+                    Opacity(
+                      opacity: widget.peeked ? 0 : 1,
+                      child: CustomPaint(size: const Size(56, 56), painter: DualRingPainter(outerPct: _outer.value, innerPct: _inner.value)),
+                    ),
+                    if (widget.bothHit && !widget.peeked)
+                      Transform.scale(scale: _checkScale.value, child: const Icon(Icons.check_circle, size: 18, color: T.success)),
+                    if (widget.empty && !widget.peeked) Text('—', style: TextStyle(fontSize: 14, color: T.faint)),
+                  ]),
+                ),
               ),
             ),
           ],
