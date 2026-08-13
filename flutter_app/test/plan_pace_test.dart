@@ -6,16 +6,24 @@ import 'package:cuttracker/features/plan/data/plan_generator.dart';
 
 void main() {
   group('safetyFloorKcal', () {
-    test('uses 1.2×BMR when it exceeds the flat minimum', () {
-      // 1.2 * 2000 = 2400, well above either flat floor.
-      expect(safetyFloorKcal(2000, 'male'), 2400);
-      expect(safetyFloorKcal(2000, 'female'), 2400);
+    test('uses BMR when it exceeds the flat minimum', () {
+      expect(safetyFloorKcal(2000, 'male'), 2000);
+      expect(safetyFloorKcal(2000, 'female'), 2000);
     });
 
-    test('falls back to the flat minimum when 1.2×BMR would dip under it', () {
-      // A light/small person: 1.2 * 950 = 1140, under both flat floors.
-      expect(safetyFloorKcal(950, 'female'), 1200);
-      expect(safetyFloorKcal(950, 'male'), 1500);
+    test('falls back to the flat minimum when BMR would dip under it', () {
+      // A light/small person, BMR under both flat floors.
+      expect(safetyFloorKcal(1100, 'female'), 1200);
+      expect(safetyFloorKcal(1400, 'male'), 1500);
+    });
+
+    test('stays strictly below TDEE even at the lowest (sedentary, 1.2×) activity multiplier', () {
+      // Regression: the floor used to be 1.2×BMR, which equals TDEE exactly
+      // at the sedentary multiplier — collapsing the safety ceiling to 0 for
+      // every sedentary profile. Plain BMR must leave real headroom.
+      const bmr = 1600.0;
+      final tdee = bmr * 1.2; // sedentary
+      expect(safetyFloorKcal(bmr, 'male'), lessThan(tdee.round()));
     });
   });
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import '../../../../shared/theme.dart';
 
 /// The deficit/surplus slider for Settings → Goals — a plain [Slider] laid
@@ -17,7 +18,7 @@ import '../../../../shared/theme.dart';
 /// used one to place the marker, which is what caused it not to render at
 /// all for fat loss (a `Positioned` one widget removed from its `Stack`,
 /// tripping Flutter's parent-data check). This avoids that whole class of bug.
-class PaceSlider extends StatelessWidget {
+class PaceSlider extends StatefulWidget {
   final double min;
   final double max;
   final double value;
@@ -32,9 +33,31 @@ class PaceSlider extends StatelessWidget {
   const PaceSlider({super.key, required this.min, required this.max, required this.value, required this.ceiling, required this.onChanged});
 
   @override
+  State<PaceSlider> createState() => _PaceSliderState();
+}
+
+class _PaceSliderState extends State<PaceSlider> {
+  // Tracks which side of the safety-floor marker the thumb was on last, so
+  // a buzz only fires the instant it crosses — not on every pixel dragged
+  // while already past it.
+  late bool _pastCeiling = widget.ceiling != null && widget.value > widget.ceiling!;
+
+  void _handleChanged(double v) {
+    final pastCeiling = widget.ceiling != null && v > widget.ceiling!;
+    if (pastCeiling != _pastCeiling) {
+      // Heavier buzz crossing *into* the unsafe zone (a warning) than
+      // coming back out of it (just an acknowledgement).
+      HapticFeedback.mediumImpact();
+      _pastCeiling = pastCeiling;
+    }
+    widget.onChanged(v);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final min = widget.min, max = widget.max, value = widget.value, ceiling = widget.ceiling;
     const inset = 14.0; // approx. default thumb touch radius, so the drawn track lines up with where the thumb actually travels
-    final ceilingFrac = (ceiling == null || ceiling! >= max) ? null : ((ceiling! - min) / (max - min)).clamp(0.0, 1.0);
+    final ceilingFrac = (ceiling == null || ceiling >= max) ? null : ((ceiling - min) / (max - min)).clamp(0.0, 1.0);
 
     // Full green→accent→danger gradient across the whole track, always —
     // that's the Gentle/Moderate/Aggressive read and it should stay visible
@@ -61,7 +84,7 @@ class PaceSlider extends StatelessWidget {
                 height: 6,
                 child: Stack(
                   children: [
-                    const Positioned.fill(
+                    Positioned.fill(
                       child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(colors: [T.success, T.accent, T.danger]))),
                     ),
                     if (leftFlex != null && rightFlex != null)
@@ -91,7 +114,7 @@ class PaceSlider extends StatelessWidget {
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12, elevation: 3),
               overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
             ),
-            child: Slider(min: min, max: max, value: value.clamp(min, max), onChanged: onChanged),
+            child: Slider(min: min, max: max, value: value.clamp(min, max), onChanged: _handleChanged),
           ),
         ],
       ),

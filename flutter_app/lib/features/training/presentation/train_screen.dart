@@ -391,15 +391,15 @@ class _TrainScreenState extends State<TrainScreen> {
                               ),
                             ),
                             if (flash == it.name || saved)
-                              const Padding(
-                                padding: EdgeInsets.only(right: 4),
+                              Padding(
+                                padding: const EdgeInsets.only(right: 4),
                                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                                   Icon(Icons.check, size: 14, color: T.success),
-                                  SizedBox(width: 4),
+                                  const SizedBox(width: 4),
                                 ]),
                               ),
                             if (flash == it.name || saved)
-                              Text(flash == it.name ? 'Saved' : 'Logged', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: T.success)),
+                              Text(flash == it.name ? 'Saved' : 'Logged', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: T.success)),
                             AnimatedRotation(
                               turns: isOpen ? 0 : -0.25,
                               duration: const Duration(milliseconds: 200),

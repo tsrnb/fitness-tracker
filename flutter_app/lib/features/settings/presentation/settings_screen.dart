@@ -17,6 +17,7 @@ import 'widgets/settings_rows.dart';
 import 'widgets/data_action_card.dart';
 import 'widgets/day_boundary_sheet.dart';
 import 'widgets/pace_slider.dart';
+import 'widgets/theme_picker.dart';
 
 /// Full-page Settings, replacing the old modal sheet. A private nested
 /// [Navigator] gives each group (Personal, Goals, Macros, Diet, Appearance,
@@ -269,9 +270,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           badge: goalLabel((f['goalType'] as String?) ?? 'fatLoss'), badgeBg: T.accentDim, badgeColor: T.hero,
           onTap: () => _navKey.currentState!.pushNamed('goals')),
       settingsBadgeRow(context,
-          icon: Icons.fitness_center, iconColor: T.lav, iconBg: T.lavSoft,
+          icon: Icons.fitness_center, iconColor: T.lavAccent, iconBg: T.lavAccent.withValues(alpha: 0.16),
           label: 'Training plan', sub: 'Ranked by effectiveness',
-          badge: split.name, badgeBg: T.lavSoft, badgeColor: T.lav,
+          badge: split.name, badgeBg: T.lavAccent.withValues(alpha: 0.16), badgeColor: T.lavAccent,
           onTap: () => _navKey.currentState!.pushNamed('trainingPlan')),
       settingsBadgeRow(context,
           icon: Icons.pie_chart, iconColor: T.blue, iconBg: T.blue.withValues(alpha: 0.16),
@@ -612,33 +613,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _appearancePage(BuildContext context) {
+    final mode = f['themeMode'] == 'light' ? 'light' : 'dark';
     return pageScaffold(
       context: context,
       title: 'Appearance',
       onBack: () => Navigator.of(context).pop(),
-      child: StatefulBuilder(
-        builder: (context, setLocal) => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Eyebrow('Theme'),
-            // Light mode switching is disabled for now — kept visible (not
-            // removed) so it's clear the option exists and isn't just missing.
-            Opacity(
-              opacity: 0.5,
-              child: IgnorePointer(
-                child: PillTabs(
-                  options: const [MapEntry('dark', 'Dark'), MapEntry('light', 'Light')],
-                  value: 'dark',
-                  onChange: (_) {},
-                ),
-              ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Eyebrow('Theme'),
+          // setThemeMode both flips AppTheme.mode (repaints the whole app
+          // immediately) and calls this screen's own setState via `set()`,
+          // so the picker's selected card and the badge back on the
+          // Settings list stay in sync with no extra wiring here.
+          ThemePicker(value: mode, onChange: setThemeMode),
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 8),
+            child: Text(
+              mode == 'light' ? 'Light applies everywhere, right away.' : 'Dark applies everywhere, right away.',
+              style: Type.caption,
             ),
-            Padding(
-              padding: const EdgeInsets.only(top: 4, bottom: 8),
-              child: Text('Light mode is coming soon.', style: Type.caption),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

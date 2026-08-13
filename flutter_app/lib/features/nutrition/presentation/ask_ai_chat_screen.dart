@@ -305,9 +305,9 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
                       gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [aiColor1, aiColor2, aiColor3]),
                     ),
                     child: Container(
-                      decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF17161D)),
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: T.surface),
                       alignment: Alignment.center,
-                      child: const Icon(Icons.mic_none_rounded, size: 18, color: Colors.white),
+                      child: Icon(Icons.mic_none_rounded, size: 18, color: T.text),
                     ),
                   ),
                 ),
@@ -413,7 +413,7 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
           radius: 17,
           child: Container(
             padding: const EdgeInsets.all(13),
-            decoration: BoxDecoration(color: const Color(0xFF17161D), borderRadius: BorderRadius.circular(15.5)),
+            decoration: BoxDecoration(color: T.surface, borderRadius: BorderRadius.circular(15.5)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               ...items.map((it) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 5),
@@ -427,7 +427,7 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
               Container(
                 margin: const EdgeInsets.only(top: 4),
                 padding: const EdgeInsets.only(top: 9),
-                decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFF26252E)))),
+                decoration: BoxDecoration(border: Border(top: BorderSide(color: T.line))),
                 child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Text('Total', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: T.text)),
                   Text('$totalKcal kcal · ${totalProtein}g P', style: mono(fontSize: 12.5, fontWeight: FontWeight.w700, color: T.text)),
@@ -490,7 +490,7 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(border: Border.all(color: const Color(0xFF32313B)), borderRadius: BorderRadius.circular(999)),
+                    decoration: BoxDecoration(border: Border.all(color: T.line), borderRadius: BorderRadius.circular(999)),
                     alignment: Alignment.center,
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       Icon(Icons.bookmark_border, size: 14, color: T.muted),
@@ -520,7 +520,7 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
         Container(
           margin: const EdgeInsets.only(top: 6),
           height: 3,
-          decoration: BoxDecoration(color: const Color(0xFF26252E), borderRadius: BorderRadius.circular(2)),
+          decoration: BoxDecoration(color: T.line, borderRadius: BorderRadius.circular(2)),
           child: FractionallySizedBox(
             alignment: Alignment.centerLeft,
             widthFactor: pct.clamp(0.0, 1.0),

@@ -3,15 +3,24 @@ import '../domain/plan.dart';
 import 'plan_options.dart';
 
 /// The lowest calorie goal this app will ever set, regardless of how big a
-/// deficit is requested — `max(1.2×BMR, the flat 1200/1500 minimum by sex)`.
-/// 1.2×BMR alone can dip under that flat minimum for someone with a low BMR
-/// (light, small), under-protecting exactly who it's meant to protect;
-/// taking whichever is higher covers both. Neither number is a citation —
-/// see the Settings pace card's own notes for that honesty.
+/// deficit is requested — `max(BMR, the flat 1200/1500 minimum by sex)`.
+/// This mirrors the common clinical guidance (Mayo Clinic / NIH-style
+/// calculators): don't eat below your basal metabolic rate — the energy your
+/// body burns at rest — and never below 1200 kcal (women) / 1500 kcal (men)
+/// regardless. BMR alone can dip under that flat minimum for someone with a
+/// low BMR (light, small), under-protecting exactly who it's meant to
+/// protect; taking whichever is higher covers both.
+///
+/// Deliberately *not* 1.2×BMR: the lowest activity multiplier this app uses
+/// (sedentary, see [activityFactors]) is also 1.2, so `1.2×BMR` collided
+/// with `TDEE` for every sedentary profile and made the safety ceiling land
+/// at (or below) 0 — the whole pace slider read as "past the safety
+/// minimum" even at its gentlest setting. Plain BMR is always strictly below
+/// TDEE (every activity multiplier is > 1), so the ceiling now leaves real
+/// room on the slider.
 int safetyFloorKcal(double bmr, String sex) {
   final flat = sex == 'female' ? 1200.0 : 1500.0;
-  final scaled = 1.2 * bmr;
-  return round10(scaled > flat ? scaled : flat);
+  return round10(bmr > flat ? bmr : flat);
 }
 
 /// Coach: generates the full training/nutrition plan from onboarding/settings profile data.

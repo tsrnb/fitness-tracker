@@ -175,7 +175,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
         // existing lower-emphasis pattern instead of inventing a new one.
         const Eyebrow('Macros'),
         _macroBar(label: 'Carbs', value: carb, goal: carbGoal, color: T.success),
-        _macroBar(label: 'Fat', value: fat, goal: fatGoal, color: T.lav),
+        _macroBar(label: 'Fat', value: fat, goal: fatGoal, color: T.lavAccent),
         _macroBar(label: 'Fiber', value: fiber, goal: fiberGoal, color: _fiberColor),
         const SizedBox(height: 2),
         Padding(

@@ -29,11 +29,11 @@ class _DayStartAppliedScreenState extends State<DayStartAppliedScreen> with Sing
   late final bool _reduceMotion;
   bool _dismissing = false;
 
-  static const _rows = [
+  static List<_AffectedRow> get _rows => [
     _AffectedRow(Icons.restaurant, T.success, 'Diet', 'Meals & macros regroup under the new day'),
-    _AffectedRow(Icons.fitness_center, T.lav, 'Training plan', 'Workout days realign to the new schedule'),
+    _AffectedRow(Icons.fitness_center, T.lavAccent, 'Training plan', 'Workout days realign to the new schedule'),
     _AffectedRow(Icons.insights, T.blue, 'Progress', 'Deficit & streaks recompute from here'),
-    _AffectedRow(Icons.dashboard_rounded, T.hero, 'Dashboard', "Today's totals reflect the new boundary"),
+    const _AffectedRow(Icons.dashboard_rounded, T.hero, 'Dashboard', "Today's totals reflect the new boundary"),
   ];
 
   @override

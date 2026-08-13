@@ -133,7 +133,7 @@ class MiniRingPainter extends CustomPainter {
     final center = size.center(Offset.zero);
     final r = size.width / 2 - 1.75;
     final track = Paint()
-      ..color = const Color(0xFF26252E)
+      ..color = T.line
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.5;
     canvas.drawCircle(center, r, track);

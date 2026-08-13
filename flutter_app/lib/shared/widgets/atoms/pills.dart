@@ -83,7 +83,7 @@ class BudgetChip extends StatelessWidget {
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         const Text('🍽', style: TextStyle(fontSize: 11)),
         const SizedBox(width: 5),
-        Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: T.blue)),
+        Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: T.blue)),
       ]),
     );
   }

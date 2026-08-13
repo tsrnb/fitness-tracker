@@ -111,7 +111,7 @@ class _DayRingColumnState extends State<DayRingColumn> with SingleTickerProvider
                       child: CustomPaint(size: const Size(56, 56), painter: DualRingPainter(outerPct: _outer.value, innerPct: _inner.value)),
                     ),
                     if (widget.bothHit && !widget.peeked)
-                      Transform.scale(scale: _checkScale.value, child: const Icon(Icons.check_circle, size: 18, color: T.success)),
+                      Transform.scale(scale: _checkScale.value, child: Icon(Icons.check_circle, size: 18, color: T.success)),
                     if (widget.empty && !widget.peeked) Text('—', style: TextStyle(fontSize: 14, color: T.faint)),
                   ]),
                 ),

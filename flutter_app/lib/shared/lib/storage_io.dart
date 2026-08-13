@@ -74,6 +74,21 @@ class Backend {
     await db.update('users', {'name': name}, where: 'id=?', whereArgs: [id]);
   }
 
+  /// Wipes everything tied to a profile — its kv data (settings, diet,
+  /// history, plan, ...), its food library, and the user row itself — then
+  /// clears `activeUser` in [meta] if it pointed at this id, so a fresh
+  /// launch never tries to reload a profile that's gone.
+  Future<void> deleteUser(int id) async {
+    final db = await _database;
+    await db.delete('kv', where: 'uid=?', whereArgs: [id]);
+    await db.delete('foods', where: 'uid=?', whereArgs: [id]);
+    await db.delete('users', where: 'id=?', whereArgs: [id]);
+    final active = await getMeta('activeUser');
+    if (active == id.toString()) {
+      await db.delete('meta', where: 'k=?', whereArgs: ['activeUser']);
+    }
+  }
+
   Future<String?> getMeta(String k) async {
     final db = await _database;
     final rows = await db.query('meta', where: 'k=?', whereArgs: [k], limit: 1);

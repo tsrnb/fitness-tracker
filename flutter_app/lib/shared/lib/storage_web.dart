@@ -69,6 +69,23 @@ class Backend {
     await _writeUsers(sp, users);
   }
 
+  /// Mirrors [storage_io.dart]'s deleteUser: drops the user row, every
+  /// `kv:$id:*` key (settings, diet, history, plan, ...), the food library,
+  /// and clears `meta:activeUser` if it pointed at this id.
+  Future<void> deleteUser(int id) async {
+    final sp = await _sp;
+    final users = _readUsers(sp)..removeWhere((u) => u['id'] == id);
+    await _writeUsers(sp, users);
+    final kvPrefix = 'kv:$id:';
+    for (final key in sp.getKeys().where((k) => k.startsWith(kvPrefix)).toList()) {
+      await sp.remove(key);
+    }
+    await sp.remove('foods:$id');
+    if (sp.getString('meta:activeUser') == id.toString()) {
+      await sp.remove('meta:activeUser');
+    }
+  }
+
   Future<String?> getMeta(String k) async {
     final sp = await _sp;
     return sp.getString('meta:$k');

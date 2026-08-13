@@ -272,6 +272,28 @@ class AppController extends StateNotifier<AppState> {
 
   Future<void> switchUser(int id) => loadUser(id);
 
+  /// Permanently deletes a profile and everything tied to it. If [id] wasn't
+  /// the active profile, only the in-memory user list needs to move — the
+  /// data on screen right now belongs to someone else and is untouched. If
+  /// it *was* active, this loads whichever profile is left (same reload
+  /// [loadUser] already does for a normal switch), or — if it was the only
+  /// profile — drops back to a clean, empty state so the caller lands on
+  /// onboarding instead of showing a dead profile's leftover data.
+  Future<void> deleteUser(int id) async {
+    await _backend.deleteUser(id);
+    final rows = await _backend.listUsers();
+    final simpleUsers = rows.map((u) => SimpleUser(u.id, u.name)).toList();
+    if (state.user?.id != id) {
+      state = state.copyWith(users: simpleUsers);
+      return;
+    }
+    if (simpleUsers.isNotEmpty) {
+      await loadUser(simpleUsers.first.id, simpleUsers);
+    } else {
+      state = AppState(ready: true, view: AppView.onboarding, users: const [], user: null, data: AppData.empty, foods: const [], tab: 'home');
+    }
+  }
+
   void beginCreate() => state = state.copyWith(view: AppView.onboarding);
 
   void showPicker() => state = state.copyWith(view: AppView.picker);

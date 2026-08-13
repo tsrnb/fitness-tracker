@@ -399,7 +399,7 @@ class _PeekCard extends StatelessWidget {
               height: 76,
               child: Stack(alignment: Alignment.center, children: [
                 CustomPaint(size: const Size(76, 76), painter: DualRingPainter(outerPct: stat.kcalPct, innerPct: stat.proteinPct, strokeWidth: 6)),
-                if (stat.bothHit) const Icon(Icons.check_circle, size: 20, color: T.success),
+                if (stat.bothHit) Icon(Icons.check_circle, size: 20, color: T.success),
               ]),
             ),
           ],

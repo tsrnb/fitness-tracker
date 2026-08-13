@@ -144,7 +144,7 @@ class _LogFoodSheetState extends State<LogFoodSheet> {
                 padding: const EdgeInsets.all(1.6),
                 decoration: BoxDecoration(gradient: gradient, borderRadius: BorderRadius.circular(20)),
                 child: AiGradientWash(
-                  base: const Color(0xFF17161D),
+                  base: T.surface,
                   borderRadius: BorderRadius.circular(18.5),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
