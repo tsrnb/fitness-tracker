@@ -82,6 +82,36 @@ void main() {
         data: const AppData(settings: {'calorieGoal': 2200, 'proteinGoal': 160}),
       );
 
+  /// A populated state plus two weigh-ins spaced far enough apart, with a
+  /// food log in between that implies a much bigger loss than the scale
+  /// actually shows — enough to clear computeLatestGap's default 1kg
+  /// threshold and surface the gap-insight card.
+  AppState buildStateWithGap() {
+    final base = buildPopulatedState();
+    final today = DateTime.now();
+    final weight = [
+      {'date': dateKey(today.subtract(const Duration(days: 10))), 'weight': 80.0},
+      {'date': dateKey(today.subtract(const Duration(days: 3))), 'weight': 80.2}, // barely moved...
+    ];
+    // ...despite six deep-deficit days (2300 kcal/day at this fixture's
+    // 2500 tdee -> ~1.8kg implied) logged between the two weigh-ins.
+    final diet = Map<String, dynamic>.from(base.data.diet);
+    for (var i = 4; i <= 9; i++) {
+      diet[dateKey(today.subtract(Duration(days: i)))] = [
+        {'kcal': 200, 'protein': 100},
+      ];
+    }
+    return AppState(
+      ready: base.ready,
+      view: base.view,
+      users: base.users,
+      user: base.user,
+      foods: base.foods,
+      tab: base.tab,
+      data: base.data.copyWith(weight: weight, diet: diet),
+    );
+  }
+
   Future<void> settleFonts(WidgetTester tester) async {
     final previousOnError = FlutterError.onError;
     FlutterError.onError = (details) {
@@ -153,5 +183,27 @@ void main() {
     // proof it's the pushed NextKgScreen, not still the tab.
     expect(find.byType(NextKgScreen), findsOneWidget);
     expect(find.text('How this works'), findsOneWidget);
+  });
+
+  testWidgets('a real gap between weigh-ins and the food log surfaces the AI insight card', (tester) async {
+    final controller = AppController();
+
+    await tester.pumpWidget(MaterialApp(home: NextKgScreen(app: buildStateWithGap(), controller: controller)));
+    await settleFonts(tester);
+    expect(tester.takeException(), isNull);
+
+    expect(find.text('A gap between your log and your scale'), findsOneWidget);
+    expect(find.textContaining('your food log had predicted'), findsOneWidget);
+
+    // AI_PROXY_URL/AI_PROXY_CLIENT_KEY aren't passed via --dart-define in
+    // this test run, so WeightInsightService.isConfigured is false — tapping
+    // "Ask AI why" deterministically exercises the config-missing path
+    // rather than needing a real (or mocked) network call.
+    expect(find.text('Ask AI why'), findsOneWidget);
+    await tester.ensureVisible(find.text('Ask AI why'));
+    await tester.tap(find.text('Ask AI why'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining("isn't set up for this build"), findsOneWidget);
   });
 }

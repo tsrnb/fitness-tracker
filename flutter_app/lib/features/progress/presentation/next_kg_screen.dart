@@ -3,8 +3,17 @@ import '../../../shared/theme.dart';
 import '../../../shared/widgets/atoms.dart';
 import '../../../shared/lib/helpers.dart';
 import '../../../app/app_state.dart';
+import '../data/weight_insight_service.dart';
 import '../domain/kg_progress.dart';
+import '../../nutrition/domain/ai_food_item.dart' show AiConfigException, AiParseException;
 import 'widgets/kg_day_detail_sheet.dart';
+
+/// "76.4" without a pointless trailing ".0" when the weight happens to
+/// round to a whole number.
+String _fmtKg(double kg) {
+  final rounded = (kg * 10).round() / 10;
+  return rounded == rounded.roundToDouble() ? rounded.toStringAsFixed(0) : rounded.toStringAsFixed(1);
+}
 
 /// Full-screen home for the food-log-driven weight-loss tracker — opened
 /// from the compact teaser card on Progress → Weight (see [nextKgTeaserCard]
@@ -23,11 +32,21 @@ class _NextKgScreenState extends State<NextKgScreen> {
   late final bool _justReached;
 
   num get _tdee => (widget.app.data.plan?['tdee'] as num?) ?? (widget.app.data.settings['calorieGoal'] as num?) ?? 2000;
+  double? get _fallbackBaseline => (widget.app.data.settings['currentWeight'] as num?)?.toDouble();
+
+  KgProgress _computeProgress() => computeKgProgress(
+        diet: widget.app.data.diet,
+        activity: widget.app.data.activity,
+        tdee: _tdee,
+        weightLog: widget.app.data.weight,
+        fallbackBaseline: _fallbackBaseline,
+        today: todayStr(widget.app.data.settings),
+      );
 
   @override
   void initState() {
     super.initState();
-    final progress = computeKgProgress(diet: widget.app.data.diet, activity: widget.app.data.activity, tdee: _tdee);
+    final progress = _computeProgress();
     final lastSeen = (widget.app.data.settings['kgMilestonesSeen'] as num?)?.toInt() ?? 0;
     // Captured once at open — the banner (built from this) stays put for the
     // rest of this visit even though the "seen" count below updates
@@ -52,7 +71,7 @@ class _NextKgScreenState extends State<NextKgScreen> {
   @override
   Widget build(BuildContext context) {
     final today = todayStr(widget.app.data.settings);
-    final progress = computeKgProgress(diet: widget.app.data.diet, activity: widget.app.data.activity, tdee: _tdee);
+    final progress = _computeProgress();
     final remaining = kcalPerKg - progress.currentKcal;
     final window = computeKgWindow(
       diet: widget.app.data.diet,
@@ -62,6 +81,12 @@ class _NextKgScreenState extends State<NextKgScreen> {
       remainingKcal: remaining,
     );
     final hasAnyLog = widget.app.data.diet.values.any((v) => v is List && v.isNotEmpty);
+    final gap = computeLatestGap(
+      weightLog: widget.app.data.weight,
+      diet: widget.app.data.diet,
+      activity: widget.app.data.activity,
+      tdee: _tdee,
+    );
 
     return pageScaffold(
       context: context,
@@ -72,7 +97,7 @@ class _NextKgScreenState extends State<NextKgScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.only(bottom: 14),
-            child: Text('From your food log, not the scale', style: Type.caption),
+            child: Text('From your food log, calibrated against your weigh-ins', style: Type.caption),
           ),
           if (_justReached) Padding(padding: const EdgeInsets.only(bottom: 12), child: _MilestoneBanner(number: progress.reached.length)),
           if (!hasAnyLog)
@@ -83,6 +108,7 @@ class _NextKgScreenState extends State<NextKgScreen> {
             _DayStripCard(window: window, milestoneNumber: progress.currentNumber, onTapDay: (bar) => _openDay(bar, progress.currentNumber)),
             const SizedBox(height: 12),
             _MilestonesCard(progress: progress),
+            if (gap != null) ...[const SizedBox(height: 12), _GapInsightCard(gap: gap)],
             const SizedBox(height: 12),
             const _DisclosureCard(),
           ],
@@ -159,6 +185,7 @@ class _HeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final remaining = kcalPerKg - progress.currentKcal;
+    final calibrated = progress.currentWeight;
     return AppCard(
       borderColor: T.hero,
       child: Column(
@@ -188,7 +215,7 @@ class _HeroCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                       decoration: BoxDecoration(color: T.surface2, borderRadius: BorderRadius.circular(999)),
                       child: Text(
-                        '${progress.reached.length} kg lost so far',
+                        calibrated != null ? '≈${_fmtKg(calibrated)} kg now · ${progress.reached.length} kg lost so far' : '${progress.reached.length} kg lost so far',
                         style: mono(fontSize: 10.5, color: T.muted),
                       ),
                     ),
@@ -197,23 +224,7 @@ class _HeroCard extends StatelessWidget {
               ),
             ],
           ),
-          Padding(
-            padding: const EdgeInsets.only(top: 14, bottom: 10),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(5),
-              child: TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0, end: progress.currentFraction),
-                duration: const Duration(milliseconds: 650),
-                curve: Curves.easeOutCubic,
-                builder: (context, t, _) => LinearProgressIndicator(
-                  value: t,
-                  minHeight: 8,
-                  backgroundColor: T.surface2,
-                  valueColor: const AlwaysStoppedAnimation(T.hero),
-                ),
-              ),
-            ),
-          ),
+          const SizedBox(height: 14),
           Row(children: [
             Expanded(child: _statChip('${window.daysLogged}/${window.days.length}', 'days logged')),
             const SizedBox(width: 7),
@@ -313,7 +324,7 @@ class _MilestonesCard extends StatelessWidget {
           const Eyebrow('Kilograms so far', margin: EdgeInsets.only(bottom: 4)),
           _row(
             leading: _KgRing(fraction: progress.currentFraction, size: 30, stroke: 3),
-            title: 'Kg ${progress.currentNumber} — in progress',
+            title: progress.currentWeight != null ? '≈${_fmtKg(progress.currentWeight!)} kg — in progress' : 'Kg ${progress.currentNumber} — in progress',
             sub: '${(progress.currentFraction * 100).round()}% there',
             last: ordered.isEmpty,
           ),
@@ -326,7 +337,10 @@ class _MilestonesCard extends StatelessWidget {
                 alignment: Alignment.center,
                 child: Icon(Icons.check, size: 15, color: T.success),
               ),
-              title: 'Kg ${ordered[i].number}',
+              // Real, scale-grounded weight when there's a weigh-in to anchor
+              // to (see estimatedWeightOnDate); falls back to the abstract
+              // "Kg N" count for someone who hasn't logged a weight yet.
+              title: ordered[i].weight != null ? '${_fmtKg(ordered[i].weight!)} kg' : 'Kg ${ordered[i].number}',
               sub: 'Reached ${fmtDay(ordered[i].date)}',
               last: i == ordered.length - 1,
             ),
@@ -397,6 +411,103 @@ class _DisclosureCardState extends State<_DisclosureCard> {
             ),
             secondChild: const SizedBox(width: double.infinity),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shown only when [computeLatestGap] finds a real mismatch between the two
+/// most recent weigh-ins and what the food log alone predicted for the
+/// latest one — the explanation itself is opt-in (a button, not an
+/// automatic call) so this never spends AI credits without the user asking.
+class _GapInsightCard extends StatefulWidget {
+  final KgGapInsight gap;
+  const _GapInsightCard({required this.gap});
+
+  @override
+  State<_GapInsightCard> createState() => _GapInsightCardState();
+}
+
+class _GapInsightCardState extends State<_GapInsightCard> {
+  final _service = WeightInsightService();
+  bool _loading = false;
+  String? _reply;
+  String? _error;
+
+  Future<void> _ask() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final reply = await _service.explainGap(widget.gap);
+      if (!mounted) return;
+      setState(() => _reply = reply);
+    } on AiConfigException {
+      if (!mounted) return;
+      setState(() => _error = "Ask AI isn't set up for this build — see secrets.example.json.");
+    } on AiParseException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final gap = widget.gap;
+    final over = gap.gapKg > 0;
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.query_stats, size: 16, color: T.blue),
+            const SizedBox(width: 8),
+            Expanded(child: Text('A gap between your log and your scale', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: T.text))),
+          ]),
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 12),
+            child: Text(
+              'At your ${fmtDay(gap.latestDate)} weigh-in (${_fmtKg(gap.actualWeight)} kg), your food log had predicted about ${_fmtKg(gap.predictedWeight)} kg — '
+              '${_fmtKg(gap.gapKg.abs())} kg ${over ? 'more' : 'less'} than expected since ${fmtDay(gap.previousDate)}.',
+              style: TextStyle(fontSize: 12, color: T.muted, height: 1.5),
+            ),
+          ),
+          if (_reply != null)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: T.blue.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.auto_awesome, size: 15, color: T.blue),
+                const SizedBox(width: 8),
+                Expanded(child: Text(_reply!, style: TextStyle(fontSize: 12, color: T.text, height: 1.5))),
+              ]),
+            )
+          else ...[
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(_error!, style: TextStyle(fontSize: 11.5, color: T.danger)),
+              ),
+            GestureDetector(
+              onTap: _loading ? null : _ask,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(color: T.surface2, borderRadius: BorderRadius.circular(999)),
+                alignment: Alignment.center,
+                child: _loading
+                    ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: T.muted))
+                    : Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.auto_awesome, size: 14, color: T.blue),
+                        const SizedBox(width: 7),
+                        Text('Ask AI why', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: T.blue)),
+                      ]),
+              ),
+            ),
+          ],
         ],
       ),
     );
