@@ -6,8 +6,10 @@ import '../../../shared/lib/helpers.dart';
 import '../../../app/app_state.dart';
 import '../data/personal_records.dart';
 import '../data/nutrition_stats_service.dart';
+import '../domain/kg_progress.dart';
 import 'activity_progress_screen.dart';
 import 'daily_log_section.dart';
+import 'next_kg_screen.dart';
 
 class ProgressScreen extends StatefulWidget {
   final AppState app;
@@ -131,6 +133,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
           ),
         ),
       ),
+      Padding(padding: const EdgeInsets.only(bottom: 14), child: _kgTeaserCard()),
       AppCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -147,6 +150,50 @@ class _ProgressScreenState extends State<ProgressScreen> {
         ),
       ),
     ];
+  }
+
+  /// Compact entry point into [NextKgScreen] — a second, food-log-driven
+  /// read on the same "how's the weight loss going" question the scale
+  /// trend below it answers, so it lives right next to that trend rather
+  /// than off in its own tab.
+  Widget _kgTeaserCard() {
+    final data = widget.app.data;
+    final tdee = (data.plan?['tdee'] as num?) ?? (data.settings['calorieGoal'] as num?) ?? 2000;
+    final progress = computeKgProgress(diet: data.diet, activity: data.activity, tdee: tdee);
+    return AppCard(
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NextKgScreen(app: widget.app, controller: widget.controller))),
+      child: Row(children: [
+        SizedBox(
+          width: 40,
+          height: 40,
+          child: Stack(alignment: Alignment.center, children: [
+            CircularProgressIndicator(
+              value: progress.currentFraction,
+              strokeWidth: 4,
+              backgroundColor: T.surface2,
+              valueColor: const AlwaysStoppedAnimation(T.hero),
+            ),
+          ]),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Weight loss progress', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: T.text)),
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  '${(progress.currentKcal.clamp(0, kcalPerKg) / kcalPerKg).toStringAsFixed(2)} kg toward your next · from your food log',
+                  style: TextStyle(fontSize: 11, color: T.muted),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Icon(Icons.chevron_right, size: 18, color: T.faint),
+      ]),
+    );
   }
 
   List<Widget> _strengthTab(List<Map<String, dynamic>> strengthData, List<PersonalRecord> prs, Map<String, dynamic> history) {
