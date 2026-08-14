@@ -4,7 +4,10 @@ import 'package:intl/intl.dart';
 import '../../../shared/theme.dart';
 import '../../../shared/widgets/atoms.dart';
 import '../../../shared/widgets/pressable_scale.dart';
+import '../../../shared/lib/helpers.dart';
 import '../../../app/app_state.dart';
+import '../../insights/domain/insights_engine.dart';
+import '../../insights/presentation/insights_feed_screen.dart';
 import '../../plan/domain/plan.dart';
 import '../../plan/data/plan_generator.dart';
 import '../../plan/data/plan_options.dart';
@@ -297,6 +300,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           label: 'Appearance', sub: 'Theme',
           badge: f['themeMode'] == 'light' ? 'Light' : 'Dark', badgeBg: T.surface2, badgeColor: T.muted,
           onTap: () => _navKey.currentState!.pushNamed('appearance')),
+      settingsBadgeRow(context,
+          icon: Icons.auto_awesome, iconColor: T.blue, iconBg: T.blue.withValues(alpha: 0.16),
+          label: 'Insights', sub: 'What the AI notices about your log',
+          badge: '${InsightsEngine.active(widget.app.data, todayStr(widget.app.data.settings), limit: 99).length} active',
+          badgeBg: T.blue.withValues(alpha: 0.16), badgeColor: T.blue,
+          onTap: () => _navKey.currentState!.pushNamed('insights')),
       _sectionLabel('You & data'),
       settingsNavRow(context, icon: Icons.badge, label: 'Personal details', sub: 'Name, age, height, weight', onTap: () => _navKey.currentState!.pushNamed('personal')),
       settingsNavRow(context, icon: Icons.storage, label: 'Data & export', sub: 'Export your database', onTap: () => _navKey.currentState!.pushNamed('data')),
@@ -691,6 +700,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           'appearance' => _appearancePage,
           'data' => _dataPage,
           'profiles' => (ctx) => ProfilesPage(app: widget.app, controller: widget.controller),
+          'insights' => (ctx) => InsightsFeedScreen(app: widget.app, controller: widget.controller),
           _ => _rootList,
         };
         return MaterialPageRoute(settings: routeSettings, builder: builder);

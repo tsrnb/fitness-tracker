@@ -75,8 +75,10 @@ List<Map<String, dynamic>> _sortedWeightLog(List<Map<String, dynamic>> weight) {
 /// Total food-log kg lost strictly after [fromDateExclusive] and up to
 /// [toDateInclusive] — always evaluated forward in time; callers going
 /// "backward" from a later anchor negate the sign themselves. Un-logged
-/// days are excluded, same rule as everywhere else in this file.
-double _foodLogKgLostBetween(Map<String, dynamic> diet, Map<String, dynamic> activity, num tdee, String fromDateExclusive, String toDateInclusive) {
+/// days are excluded, same rule as everywhere else in this file. Public
+/// because the insights engine (`features/insights/domain/insight_rules.dart`)
+/// reuses it for the plateau-despite-a-logged-deficit check.
+double foodLogKgLostBetween(Map<String, dynamic> diet, Map<String, dynamic> activity, num tdee, String fromDateExclusive, String toDateInclusive) {
   double kcalSum = 0;
   for (final date in diet.keys) {
     if (date.compareTo(fromDateExclusive) <= 0 || date.compareTo(toDateInclusive) > 0) continue;
@@ -132,9 +134,9 @@ double? estimatedWeightOnDate({
   if (date.compareTo(anchorDate) < 0) {
     // date is before the anchor: it was heavier by whatever the food log
     // says was lost between then and the anchor.
-    return anchorWeight + _foodLogKgLostBetween(diet, activity, tdee, date, anchorDate);
+    return anchorWeight + foodLogKgLostBetween(diet, activity, tdee, date, anchorDate);
   }
-  return anchorWeight - _foodLogKgLostBetween(diet, activity, tdee, anchorDate, date);
+  return anchorWeight - foodLogKgLostBetween(diet, activity, tdee, anchorDate, date);
 }
 
 /// Walks every logged day in [diet], oldest first, summing true deficit —
@@ -315,7 +317,7 @@ KgGapInsight? computeLatestGap({
   final latestDate = latest['date'] as String;
   final previousWeight = (previous['weight'] as num).toDouble();
   final actualWeight = (latest['weight'] as num).toDouble();
-  final predictedWeight = previousWeight - _foodLogKgLostBetween(diet, activity, tdee, previousDate, latestDate);
+  final predictedWeight = previousWeight - foodLogKgLostBetween(diet, activity, tdee, previousDate, latestDate);
 
   final gap = actualWeight - predictedWeight;
   if (gap.abs() < thresholdKg) return null;

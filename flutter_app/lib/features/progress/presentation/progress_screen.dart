@@ -7,6 +7,10 @@ import '../../../app/app_state.dart';
 import '../data/personal_records.dart';
 import '../data/nutrition_stats_service.dart';
 import '../domain/kg_progress.dart';
+import '../../insights/domain/insight.dart';
+import '../../insights/domain/insights_engine.dart';
+import '../../insights/presentation/insight_actions.dart';
+import '../../insights/presentation/widgets/insight_card.dart';
 import 'activity_progress_screen.dart';
 import 'daily_log_section.dart';
 import 'next_kg_screen.dart';
@@ -133,6 +137,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
           ),
         ),
       ),
+      for (final insight in _weightInsights()) Padding(padding: const EdgeInsets.only(bottom: 14), child: _weightInsightCard(insight)),
       Padding(padding: const EdgeInsets.only(bottom: 14), child: _kgTeaserCard()),
       AppCard(
         child: Column(
@@ -193,6 +198,29 @@ class _ProgressScreenState extends State<ProgressScreen> {
         ),
         Icon(Icons.chevron_right, size: 18, color: T.faint),
       ]),
+    );
+  }
+
+  /// Only the insights actually about weight — protein/training ones would
+  /// be noise here and belong nearer their own data instead.
+  List<Insight> _weightInsights() {
+    final today = todayStr(widget.app.data.settings);
+    return InsightsEngine.active(widget.app.data, today, limit: 1).where((i) => i.id.startsWith('weight-log-gap:') || i.id.startsWith('plateau:')).toList();
+  }
+
+  Widget _weightInsightCard(Insight insight) {
+    // weight-log-gap's mapped action is "go to the Weight tab" — already
+    // where this card lives, so there's nothing useful left for it to do
+    // here; the field right above is the action. Only plateau's "see why"
+    // (which opens the Next Kg screen) applies in this context.
+    final onAction = insight.id.startsWith('weight-log-gap:') ? null : insightAction(context, insight, widget.app, widget.controller, goTab: (_) {});
+    return InsightCard(
+      insight: insight,
+      onAction: onAction,
+      onDismiss: () {
+        if (widget.controller.current.user == null) return;
+        widget.controller.patchSettings('insightsDismissed', InsightsEngine.withDismissed(widget.app.data, insight.id));
+      },
     );
   }
 
