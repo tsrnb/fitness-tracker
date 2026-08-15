@@ -10,19 +10,23 @@ class AskAiController {
   AskAiController([OpenAiFoodService? service]) : _service = service ?? OpenAiFoodService();
 
   // Prior user/assistant turns replayed to the model on each call so a
-  // follow-up like "add 10g protein to that" resolves against the items
-  // just shown instead of arriving with no context. Only successful,
-  // food-containing exchanges are kept — errors and off-topic replies add
-  // nothing worth chaining. Capped to the last few exchanges since only
-  // recent context matters here and it keeps the request small.
+  // follow-up — "add 10g protein to that" on a meal breakdown, or "what
+  // about a vegetarian version" on advice just given — resolves against
+  // what was actually just said instead of arriving with no context. Only
+  // successful exchanges are kept (advice-only turns included, now that
+  // those succeed instead of throwing — see OpenAiFoodService.chat); a
+  // network/parse error adds nothing worth chaining. Capped to the last
+  // few exchanges since only recent context matters here and it keeps the
+  // request small — bumped from 12 to 16 since a real nutrition Q&A thread
+  // tends to run a couple of turns longer than a meal-logging one.
   final List<Map<String, String>> _history = [];
-  static const _maxHistoryMessages = 12;
+  static const _maxHistoryMessages = 16;
 
   Future<bool> ping() => _service.ping();
 
-  Future<AiFoodParseResult> send(String description, {required Map<String, dynamic> knownFacts}) async {
-    final result = await _service.parseMeal(description, history: _history, knownFacts: knownFacts);
-    _pushHistory(description, result.rawContent);
+  Future<AiFoodParseResult> send(String message, {required Map<String, dynamic> knownFacts, String? profileContext}) async {
+    final result = await _service.chat(message, history: _history, knownFacts: knownFacts, profileContext: profileContext);
+    _pushHistory(message, result.rawContent);
     return result;
   }
 

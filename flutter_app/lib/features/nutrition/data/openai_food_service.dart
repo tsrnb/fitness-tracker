@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../domain/ai_food_item.dart';
 
-/// The OpenAI model Ask AI's meal estimates run on — pulled out as a
-/// constant so the UI can show it (e.g. in the chat header) without
-/// duplicating the string.
+/// The OpenAI model Ask AI (both meal logging and nutrition advice) runs
+/// on — pulled out as a constant so the UI can show it (e.g. in the chat
+/// header) without duplicating the string.
 const aiModelName = 'gpt-4o-mini';
 
 /// Calls a small Cloudflare Worker (`cf-worker/`) instead of OpenAI directly.
@@ -44,11 +44,15 @@ class OpenAiFoodService {
   }
 
   static const _systemPrompt = '''
-You are a nutrition estimator embedded in a personal fitness-tracking app. The user will describe what they ate in casual language — often Indian home-cooked meals (rotis, dal, sabzi, curd, rice, and similar) but not exclusively. Break their message into distinct food items and estimate calories and macros for each, using realistic home-cooking portions when no quantity is given (assume one normal serving).
+You are a knowledgeable, encouraging nutritionist embedded in a personal fitness-tracking app. You do two things, and you tell which one a message calls for yourself:
+
+1. LOGGING — the user describes what they ate, in casual language, often Indian home-cooked meals (rotis, dal, sabzi, curd, rice, and similar) but not exclusively. Break it into distinct food items and estimate calories and macros for each, using realistic home-cooking portions when no quantity is given (assume one normal serving).
+
+2. ADVICE — anything else nutrition-related: "how much protein do I actually need", "is intermittent fasting worth it for me", "what should I eat before a workout", "swap for this ingredient", "why am I always hungry on a cut", general diet/health questions, or a follow-up on something you just said. Answer for real, as a real nutritionist would — specific, evidence-informed, and willing to take a position, not a vague disclaimer. Use their profile context below when it's actually relevant to the answer (their goal, remaining calories/macros today, dietary preference) — don't force it in when the question doesn't call for it. A short greeting or genuinely unrelated message (not food or nutrition at all) still gets a brief, friendly reply, not a refusal.
 
 Respond with ONLY valid JSON, no markdown fences, no commentary outside the JSON, in exactly this shape:
 {
-  "reply": "one short, friendly sentence introducing the breakdown, referencing what they described",
+  "reply": "for LOGGING: one short sentence introducing the breakdown. for ADVICE: the actual answer, as many sentences as it genuinely needs — usually 2-5, more if the question warrants it.",
   "items": [
     {"name": "string", "emoji": "single emoji that best represents this food", "kcal": number, "protein": number, "carb": number, "fat": number, "fiber": number}
   ],
@@ -57,27 +61,33 @@ Respond with ONLY valid JSON, no markdown fences, no commentary outside the JSON
   ]
 }
 
-All macro numbers are grams except kcal, all rounded to whole numbers. If the message doesn't describe any food (e.g. a greeting or unrelated question), return an empty items array and a reply that gently asks them to describe a meal instead.
+All macro numbers are grams except kcal, all rounded to whole numbers. An ADVICE turn has an empty items array and everything is in "reply" — that's the normal, expected shape for it, not an error case.
 
-Earlier turns in this conversation may be included for context. If the user's new message is a correction or addition referring to what was just discussed (e.g. "add 10g protein to that", "make it 2 rotis instead", "actually no butter") rather than a new standalone meal, apply the change to the most recent item breakdown and return the full corrected set of items — not just the delta.
+Earlier turns in this conversation may be included for context, and matter for both logging and advice — a follow-up like "add 10g protein to that" corrects the most recent item breakdown (return the full corrected set, not just the delta), and a follow-up like "what about a vegetarian version" builds on the advice you just gave, not a fresh unrelated question.
 
-A "Known food facts" line may be included above the conversation listing standing values the user has already taught you for specific foods in past sessions — use those values whenever the user mentions that food again instead of re-estimating.
+A "Known food facts" line may be included above the conversation listing standing values the user has already taught you for specific foods in past sessions — use those values whenever the user mentions that food again instead of re-estimating. A "User profile" line may also be included — background for ADVICE answers, not something to recite back unless it's relevant.
 
-The "remember" array is separate from "items": include a food in it only when the user is stating or correcting a fixed, reusable value for that food itself (e.g. "yogurt is always 101kcal and 11g protein", "actually peanut butter is 100kcal not 90"), not when they're just describing what they ate today. Most replies will have an empty remember array.
+The "remember" array is separate from "items": include a food in it only when the user is stating or correcting a fixed, reusable value for that food itself (e.g. "yogurt is always 101kcal and 11g protein", "actually peanut butter is 100kcal not 90"), not when they're just describing what they ate today. Almost every reply — including every ADVICE reply — has an empty remember array.
 ''';
 
-  Future<AiFoodParseResult> parseMeal(
-    String description, {
+  /// [profileContext] is a one-line summary of the user's goal, diet
+  /// preference, and today's remaining calories/macros — background an
+  /// ADVICE answer can draw on for a personalized answer, distinct from
+  /// [knownFacts] (specific remembered per-food values).
+  Future<AiFoodParseResult> chat(
+    String message, {
     List<Map<String, String>> history = const [],
     Map<String, dynamic> knownFacts = const {},
+    String? profileContext,
   }) async {
     if (!isConfigured) throw AiConfigException();
 
     final messages = <Map<String, String>>[
       {'role': 'system', 'content': _systemPrompt},
+      if (profileContext != null && profileContext.isNotEmpty) {'role': 'system', 'content': 'User profile: $profileContext'},
       if (knownFacts.isNotEmpty) {'role': 'system', 'content': _describeKnownFacts(knownFacts)},
       ...history,
-      {'role': 'user', 'content': description},
+      {'role': 'user', 'content': message},
     ];
 
     final http.Response res;
@@ -89,6 +99,10 @@ The "remember" array is separate from "items": include a food in it only when th
             body: jsonEncode({
               'model': aiModelName,
               'temperature': 0.3,
+              // A real advice answer runs longer than a meal-parse JSON blob
+              // — generous enough for a genuine explanation, capped so an
+              // open-ended question can't run away with an unbounded reply.
+              'max_tokens': 700,
               'response_format': {'type': 'json_object'},
               'messages': messages,
             }),
@@ -114,8 +128,8 @@ The "remember" array is separate from "items": include a food in it only when th
     final choices = body['choices'] as List?;
     String? content;
     if (choices != null && choices.isNotEmpty) {
-      final message = (choices.first as Map<String, dynamic>)['message'] as Map<String, dynamic>?;
-      content = message?['content'] as String?;
+      final responseMessage = (choices.first as Map<String, dynamic>)['message'] as Map<String, dynamic>?;
+      content = responseMessage?['content'] as String?;
     }
     if (content == null) throw AiParseException("That didn't come back right — try again.");
 
@@ -123,18 +137,21 @@ The "remember" array is separate from "items": include a food in it only when th
     try {
       parsed = jsonDecode(content) as Map<String, dynamic>;
     } catch (_) {
-      throw AiParseException("Couldn't make sense of that reply — try rephrasing what you ate.");
+      throw AiParseException("Couldn't make sense of that reply — try rephrasing.");
     }
 
     final rawItems = parsed['items'] as List?;
-    if (rawItems == null || rawItems.isEmpty) {
-      throw AiParseException((parsed['reply'] as String?) ?? "I couldn't find any food in that — try describing a meal.");
+    final reply = parsed['reply'] as String?;
+    // An advice-only turn (empty items, a real reply) is a normal, expected
+    // result now — only a genuinely empty response is an error.
+    if ((rawItems == null || rawItems.isEmpty) && (reply == null || reply.isEmpty)) {
+      throw AiParseException("That didn't come back right — try again.");
     }
 
     final items = _applyKnownFacts(_parseItems(rawItems), knownFacts);
     final remember = _parseItems(parsed['remember'] as List?);
 
-    return AiFoodParseResult(items: items, remember: remember, reply: parsed['reply'] as String?, rawContent: content);
+    return AiFoodParseResult(items: items, remember: remember, reply: reply, rawContent: content);
   }
 
   /// The "Known food facts" system message only *asks* the model to reuse

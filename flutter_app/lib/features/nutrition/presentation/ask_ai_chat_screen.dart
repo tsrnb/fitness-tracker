@@ -13,24 +13,35 @@ import 'widgets/ai_gradient.dart';
 import 'widgets/chat_bits.dart';
 import 'voice_listen_screen.dart';
 
-/// Full-screen conversational food logging — "the flagship path," per the
-/// confirmed design: describe a meal in plain words, the model breaks it
-/// into items with macros, and one tap adds it to today's log through the
-/// same `addMealEntries` every other logging path already uses. Styled with
-/// a consistent gradient/sparkle language distinct from the app's single
-/// accent-orange, so anything from the assistant reads as "the assistant
-/// said this," never confused with a normal control.
+/// Full-screen conversational food logging *and* nutrition advice — "the
+/// flagship path," per the confirmed design. Describe a meal in plain
+/// words and the model breaks it into items with macros, one tap adds it
+/// to today's log through the same `addMealEntries` every other logging
+/// path already uses; ask it anything nutrition-related instead and it
+/// answers as a real nutritionist would, using the session's own goal/
+/// diet/remaining-today context (see `_buildProfileContext`) and its own
+/// prior replies (`AskAiController`'s history) for real follow-up
+/// conversation. Which mode a message needs is the model's call, not a
+/// toggle in this screen — see `OpenAiFoodService.chat`'s system prompt.
+/// Styled with a consistent gradient/sparkle language distinct from the
+/// app's single accent-orange, so anything from the assistant reads as
+/// "the assistant said this," never confused with a normal control.
 class AskAiChatScreen extends StatefulWidget {
   final AppState app;
   final AppController controller;
-  const AskAiChatScreen({super.key, required this.app, required this.controller});
+  // Test-only seam — a real launch always leaves this null and gets a real
+  // AskAiController (which itself takes an optional OpenAiFoodService, same
+  // pattern one level down). Lets a widget test swap in a fake service that
+  // returns canned advice/logging results without touching the network.
+  final AskAiController? aiController;
+  const AskAiChatScreen({super.key, required this.app, required this.controller, this.aiController});
 
   @override
   State<AskAiChatScreen> createState() => _AskAiChatScreenState();
 }
 
 class _AskAiChatScreenState extends State<AskAiChatScreen> {
-  final _ai = AskAiController();
+  late final AskAiController _ai = widget.aiController ?? AskAiController();
   final _scrollCtrl = ScrollController();
   final _inputCtrl = TextEditingController();
   final List<ChatEntry> _entries = [];
@@ -69,6 +80,14 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
   late final num _kcalGoal;
   late final num _proteinGoal;
 
+  // A one-line summary of the user's goal/diet/remaining-today, handed to
+  // the model as background for nutrition-advice answers (see
+  // OpenAiFoodService.chat's `profileContext`) — built once at open rather
+  // than recomputed per message, since it only meaningfully changes across
+  // a session if items get logged mid-chat, and "roughly right" background
+  // is all an advice answer needs anyway.
+  late final String _profileContext;
+
   @override
   void initState() {
     super.initState();
@@ -82,7 +101,16 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
     final burned = ((widget.app.data.activity[today] as Map?)?['kcal'] as num?) ?? 0;
     _kcalGoal = ((st['calorieGoal'] as num?) ?? 2000) + burned;
     _proteinGoal = (st['proteinGoal'] as num?) ?? 150;
+    _profileContext = _buildProfileContext(st);
     _checkAvailability();
+  }
+
+  String _buildProfileContext(Map<String, dynamic> st) {
+    final goal = switch (st['goalType']) { 'weightGain' => 'building muscle/gaining weight', 'maintain' => 'maintaining weight', _ => 'losing fat' };
+    final diet = switch (st['dietPref']) { 'nonveg' => 'eats non-vegetarian', 'egg' => 'eats eggs, otherwise vegetarian', _ => 'vegetarian' };
+    final kcalLeft = (_kcalGoal - _consumedKcal).round();
+    final proteinLeft = (_proteinGoal - _consumedProtein).round();
+    return 'Goal: $goal. Diet: $diet. Today so far: $kcalLeft kcal and ${proteinLeft}g protein left of a $_kcalGoal kcal / ${_proteinGoal}g protein target.';
   }
 
   // Pinged here rather than gating the Log Food sheet's entry card — a
@@ -128,13 +156,19 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
     _scrollToEnd();
 
     try {
-      final result = await _ai.send(msg, knownFacts: _knownFacts);
+      final result = await _ai.send(msg, knownFacts: _knownFacts, profileContext: _profileContext);
       if (!mounted) return;
       if (result.remember.isNotEmpty) await _rememberFacts(result.remember);
       setState(() {
         _entries.removeWhere((e) => e is AssistantTypingEntry);
-        if (result.reply != null && result.reply!.isNotEmpty) _entries.add(AssistantTextEntry(result.reply!));
-        _entries.add(AssistantResultEntry(result));
+        if (result.items.isEmpty) {
+          // Advice-only turn — the reply *is* the answer, no item
+          // breakdown/"add to log" card to show alongside it.
+          _entries.add(AssistantTextEntry(result.reply ?? "I'm not sure how to answer that — try rephrasing?"));
+        } else {
+          if (result.reply != null && result.reply!.isNotEmpty) _entries.add(AssistantTextEntry(result.reply!));
+          _entries.add(AssistantResultEntry(result));
+        }
       });
     } on AiConfigException {
       if (!mounted) return;
@@ -234,7 +268,7 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       const Text('Ask AI', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: Colors.white)),
-                      Text('Describe a meal to log it', style: TextStyle(fontSize: 10.5, color: T.muted)),
+                      Text('Log a meal, or ask anything about nutrition', style: TextStyle(fontSize: 10.5, color: T.muted)),
                     ]),
                   ),
                   Container(
@@ -259,7 +293,7 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
                 controller: _scrollCtrl,
                 padding: const EdgeInsets.fromLTRB(14, 4, 14, 6),
                 children: [
-                  _assistantBubble("Hey $firstName 👋 What did you eat? Type it however feels natural — I'll fill in the rest."),
+                  _assistantBubble("Hey $firstName 👋 What did you eat, or what's on your mind? Log a meal or ask me anything about nutrition — I'll take it from there."),
                   if (_showChips)
                     Padding(
                       padding: const EdgeInsets.only(left: 32, top: 8),
@@ -267,6 +301,7 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
                         _quickChip('🍳 Breakfast', () => _send('For breakfast I had ')),
                         _quickChip('🍛 Lunch', () => _send('For lunch I had ')),
                         _quickChip('🍿 Snack', () => _send('As a snack I had ')),
+                        _quickChip('💡 Eat before or after a workout?', () => _send('Should I eat before or after my workout?')),
                       ]),
                     ),
                   ..._entries.map(_buildEntry),
@@ -288,7 +323,7 @@ class _AskAiChatScreenState extends State<AskAiChatScreen> {
                       minLines: 1,
                       maxLines: 4,
                       style: TextStyle(fontSize: 13, color: T.text),
-                      decoration: InputDecoration(border: InputBorder.none, hintText: 'Describe what you ate…', hintStyle: TextStyle(color: T.faint, fontSize: 13)),
+                      decoration: InputDecoration(border: InputBorder.none, hintText: 'Log a meal, or ask a question…', hintStyle: TextStyle(color: T.faint, fontSize: 13)),
                       onSubmitted: (_) => _send(),
                     ),
                   ),
