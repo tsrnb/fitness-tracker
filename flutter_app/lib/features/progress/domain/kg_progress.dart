@@ -3,6 +3,31 @@
 /// conversion `plan_generator.dart` already uses for the weekly-rate math.
 const int kcalPerKg = 7700;
 
+/// How close [KgProgress.currentWeight] is to the next *round* kg below it
+/// — 75.4 kg is [target] 75, [gap] 0.4. Deliberately separate from
+/// [KgProgress.reached]/[KgProgress.currentKcal], which track cumulative
+/// *banked* food-log deficit — a real, meaningful number, but not aligned
+/// to a round figure on the scale, since actual weight during a leg
+/// doesn't move in neat kg steps. This answers the more immediate
+/// question a person actually has looking at the scale: how close am I to
+/// the next whole number.
+class NextWholeKg {
+  final double target;
+  final double gap; // always > 0
+  const NextWholeKg({required this.target, required this.gap});
+}
+
+/// Null when there's no calibrated current weight to compute from (see
+/// [KgProgress.currentWeight] / [estimatedWeightOnDate]).
+NextWholeKg? computeNextWholeKg(double? currentWeight) {
+  if (currentWeight == null) return null;
+  var target = currentWeight.floorToDouble();
+  // Already sitting on (or a hair above, past floating-point noise) a
+  // whole number — the "next" one is a full kg further down, not 0.0 away.
+  if (target >= currentWeight - 1e-9) target -= 1;
+  return NextWholeKg(target: target, gap: currentWeight - target);
+}
+
 /// One whole kg reached — permanent once recorded. A later surplus run can
 /// stall (or even go negative on) progress toward the *next* kg, but it
 /// never un-earns one already reached; see [computeKgProgress].

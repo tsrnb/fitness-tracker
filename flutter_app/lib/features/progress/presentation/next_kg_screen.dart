@@ -15,6 +15,11 @@ String _fmtKg(double kg) {
   return rounded == rounded.roundToDouble() ? rounded.toStringAsFixed(0) : rounded.toStringAsFixed(1);
 }
 
+/// A gap under 0.1kg reads as "0.0" at one decimal, which looks like a
+/// rounding bug right when it matters most (the "so close" moment) — two
+/// decimals only kick in there.
+String _fmtGapKg(double gap) => gap < 0.1 ? gap.toStringAsFixed(2) : gap.toStringAsFixed(1);
+
 /// Full-screen home for the food-log-driven weight-loss tracker — opened
 /// from the compact teaser card on Progress → Weight (see [nextKgTeaserCard]
 /// in `progress_screen.dart`). Everything here reads from [KgProgress]/
@@ -72,7 +77,11 @@ class _NextKgScreenState extends State<NextKgScreen> {
   Widget build(BuildContext context) {
     final today = todayStr(widget.app.data.settings);
     final progress = _computeProgress();
-    final remaining = kcalPerKg - progress.currentKcal;
+    // The gap to the next *round* number on the scale — what the hero
+    // actually leads with now — rather than the food-log milestone's own
+    // fractional remainder, which has no reason to land on a whole number.
+    final nextWhole = computeNextWholeKg(progress.currentWeight);
+    final remaining = nextWhole != null ? nextWhole.gap * kcalPerKg : kcalPerKg - progress.currentKcal;
     final window = computeKgWindow(
       diet: widget.app.data.diet,
       activity: widget.app.data.activity,
@@ -103,11 +112,11 @@ class _NextKgScreenState extends State<NextKgScreen> {
           if (!hasAnyLog)
             _EmptyState(onLogFood: () => Navigator.of(context).pop())
           else ...[
-            _HeroCard(progress: progress, window: window),
+            _HeroCard(progress: progress, window: window, nextWhole: nextWhole),
             const SizedBox(height: 12),
-            _DayStripCard(window: window, milestoneNumber: progress.currentNumber, onTapDay: (bar) => _openDay(bar, progress.currentNumber)),
+            _DayStripCard(window: window, onTapDay: (bar) => _openDay(bar, progress.currentNumber)),
             const SizedBox(height: 12),
-            _MilestonesCard(progress: progress),
+            _MilestonesCard(progress: progress, nextWhole: nextWhole),
             if (gap != null) ...[const SizedBox(height: 12), _GapInsightCard(gap: gap)],
             const SizedBox(height: 12),
             const _DisclosureCard(),
@@ -177,68 +186,146 @@ class _RingPainter extends CustomPainter {
   bool shouldRepaint(covariant _RingPainter old) => old.fraction != fraction || old.stroke != stroke;
 }
 
-class _HeroCard extends StatelessWidget {
+/// The hero — a fixed atmospheric gradient (not theme-swapped, same call
+/// the app already makes for the Ask AI chat's gradient and the
+/// profile-switch ceremony) carrying the one thing worth checking back for:
+/// the real, whole-number gap to the next kg. Back to a rounded card like
+/// every other section on this screen (not full-bleed) — sits in the same
+/// scrolling column as the day strip and milestones below it, so it can go
+/// straight through `pageScaffold` instead of needing its own Scaffold/
+/// collapsing sliver header.
+///
+/// Animated on arrival: the card itself fades/slides up once on mount, the
+/// headline weight and the gap pill count up to their real values, and the
+/// descent rail's marker eases down into position rather than snapping
+/// there — all one-shot, tied to [_HeroCardState]'s own entrance
+/// controller rather than looping, so the card settles and goes still. The
+/// "so close" gradient is the one exception: a slow ambient breathe, only
+/// running while [close] is true, so the excited state is the one that
+/// keeps feeling alive.
+class _HeroCard extends StatefulWidget {
   final KgProgress progress;
   final KgWindow window;
-  const _HeroCard({required this.progress, required this.window});
+  final NextWholeKg? nextWhole;
+  const _HeroCard({required this.progress, required this.window, required this.nextWhole});
+
+  // Roughly a strong single day's deficit — close enough that "today could
+  // be the day" is actually true, not just close-ish.
+  static const _closeThresholdKg = 0.15;
+
+  @override
+  State<_HeroCard> createState() => _HeroCardState();
+}
+
+class _HeroCardState extends State<_HeroCard> with SingleTickerProviderStateMixin {
+  late final AnimationController _entrance;
+
+  @override
+  void initState() {
+    super.initState();
+    _entrance = AnimationController(vsync: this, duration: const Duration(milliseconds: 520))..forward();
+  }
+
+  @override
+  void dispose() {
+    _entrance.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final remaining = kcalPerKg - progress.currentKcal;
-    final calibrated = progress.currentWeight;
-    return AppCard(
-      borderColor: T.hero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              _KgRing(fraction: progress.currentFraction, centerLabel: 'there'),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${(progress.currentKcal.clamp(0, kcalPerKg) / kcalPerKg).toStringAsFixed(2)} kg toward your next',
-                      style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: T.text),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 3, bottom: 6),
-                      child: Text(
-                        '${progress.currentKcal.clamp(0, kcalPerKg).round()} / $kcalPerKg calories',
-                        style: mono(fontSize: 11.5, color: T.muted),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                      decoration: BoxDecoration(color: T.surface2, borderRadius: BorderRadius.circular(999)),
-                      child: Text(
-                        calibrated != null ? '≈${_fmtKg(calibrated)} kg now · ${progress.reached.length} kg lost so far' : '${progress.reached.length} kg lost so far',
-                        style: mono(fontSize: 10.5, color: T.muted),
-                      ),
-                    ),
-                  ],
-                ),
+    final calibrated = widget.progress.currentWeight;
+    final gap = widget.nextWhole;
+    final window = widget.window;
+    final close = gap != null && gap.gap < _HeroCard._closeThresholdKg;
+    final fractionDown = gap != null ? (1 - gap.gap).clamp(0.0, 1.0) : 0.0;
+
+    return AnimatedBuilder(
+      animation: _entrance,
+      builder: (context, child) {
+        final t = Curves.easeOutCubic.transform(_entrance.value);
+        return Opacity(opacity: t, child: Transform.translate(offset: Offset(0, 16 * (1 - t)), child: child));
+      },
+      child: _AmbientGradientCard(
+        close: close,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              if (close) const Padding(padding: EdgeInsets.only(right: 6), child: _PulseDot()),
+              Text(
+                close ? 'SO CLOSE' : 'YOUR DESCENT',
+                style: mono(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.8)).copyWith(letterSpacing: 1.2),
               ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(children: [
-            Expanded(child: _statChip('${window.daysLogged}/${window.days.length}', 'days logged')),
-            const SizedBox(width: 7),
-            Expanded(child: _statChip(window.avgDeficitPerLoggedDay > 0 ? '${window.avgDeficitPerLoggedDay.round()}' : '—', 'avg cal/day')),
-            const SizedBox(width: 7),
-            Expanded(child: _statChip(_etaLabel(window.etaDays, remaining), 'to next kg')),
-          ]),
-        ],
+            ]),
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                TweenAnimationBuilder<double>(
+                  // Counts *down* into place — from the whole kg just above
+                  // (the one already left behind) to the real calibrated
+                  // reading — rather than up from below it, so the motion
+                  // itself reads as the descent, not just a reveal.
+                  tween: Tween(begin: gap != null ? gap.target + 1 : (calibrated ?? 0), end: calibrated ?? 0),
+                  duration: const Duration(milliseconds: 900),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, v, _) => Text(
+                    calibrated != null ? _fmtKg(v) : '—',
+                    style: mono(fontSize: 50, fontWeight: FontWeight.w800, color: Colors.white).copyWith(height: 0.9),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 5, bottom: 7),
+                  child: Text('kg', style: mono(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.72))),
+                ),
+                const Spacer(),
+                if (gap != null)
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: fractionDown),
+                    duration: const Duration(milliseconds: 750),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, v, _) => _DescentRail(topWhole: gap.target + 1, bottomWhole: gap.target, fractionDown: v, close: close),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            if (gap != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: close ? 0.2 : 0.13),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: gap.gap),
+                    duration: const Duration(milliseconds: 750),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, v, _) => Text('${_fmtGapKg(v)} kg', style: mono(fontSize: 12.5, fontWeight: FontWeight.w800, color: Colors.white)),
+                  ),
+                  const SizedBox(width: 5),
+                  Text('to ${_fmtKg(gap.target)} kg', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.85))),
+                ]),
+              )
+            else
+              Text("Log a weigh-in to see how close you are.", style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.75))),
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(child: _statChip('${window.daysLogged}/${window.days.length}', 'LOGGED')),
+              const SizedBox(width: 7),
+              Expanded(child: _statChip(window.avgDeficitPerLoggedDay > 0 ? '${window.avgDeficitPerLoggedDay.round()}' : '—', 'AVG CAL/DAY')),
+              const SizedBox(width: 7),
+              Expanded(child: _statChip(close ? 'TODAY' : _etaLabel(window.etaDays), close ? 'COULD BE IT' : 'TO NEXT')),
+            ]),
+          ],
+        ),
       ),
     );
   }
 
-  String _etaLabel(int? etaDays, num remaining) {
-    if (remaining <= 0) return 'any day';
+  String _etaLabel(int? etaDays) {
     if (etaDays == null) return '—';
     if (etaDays == 0) return 'any day';
     return '~$etaDays days';
@@ -247,20 +334,245 @@ class _HeroCard extends StatelessWidget {
   Widget _statChip(String value, String label) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(color: T.surface2, borderRadius: BorderRadius.circular(10)),
+      decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.18), border: Border.all(color: Colors.white.withValues(alpha: 0.16)), borderRadius: BorderRadius.circular(10)),
       child: Column(children: [
-        Text(value, style: mono(fontSize: 12.5, fontWeight: FontWeight.w700, color: T.text)),
-        Padding(padding: const EdgeInsets.only(top: 2), child: Text(label, style: TextStyle(fontSize: 8.5, color: T.muted))),
+        Text(value, style: mono(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white)),
+        Padding(padding: const EdgeInsets.only(top: 2), child: Text(label, style: TextStyle(fontSize: 7.5, color: Colors.white.withValues(alpha: 0.7)))),
       ]),
     );
   }
 }
 
+/// The card's gradient background — always drifting, never a static
+/// paint, but at two different paces: a slow, barely-there sky drift for
+/// the normal "descent" state, and a faster, warmer breathe once [close]
+/// flips true, so the one moment worth getting excited about is
+/// noticeably more alive than the rest.
+///
+/// On mount, the color also *blooms* in — the card starts flat (nothing
+/// but [_dusk]) and the mid/end stops fade up to their real colors over
+/// the first beat, rather than the gradient just snapping to a random
+/// point mid-cycle the instant the screen appears. One-shot, via
+/// [_reveal]; the looping breathe in [_c] runs underneath it the whole
+/// time, so the bloom is really just this card's own arrival settling on
+/// top of motion that was already going.
+class _AmbientGradientCard extends StatefulWidget {
+  final bool close;
+  final Widget child;
+  const _AmbientGradientCard({required this.close, required this.child});
+
+  @override
+  State<_AmbientGradientCard> createState() => _AmbientGradientCardState();
+}
+
+class _AmbientGradientCardState extends State<_AmbientGradientCard> with TickerProviderStateMixin {
+  late final AnimationController _c;
+  late final AnimationController _reveal;
+
+  static const _dusk = Color(0xFF1C1B3A);
+  static const _twilightA = Color(0xFF6E4E8E);
+  static const _emberA = Color(0xFFFF7A45);
+  static const _twilightB = Color(0xFF553F73);
+  static const _emberB = Color(0xFFFF9A61);
+  static const _closeMidA = Color(0xFFC4527A);
+  static const _closeEndA = Color(0xFFFFC24B);
+  static const _closeMidB = Color(0xFFD9628C);
+  static const _closeEndB = Color(0xFFFFD976);
+
+  static const _slowDuration = Duration(milliseconds: 7000);
+  static const _closeDuration = Duration(milliseconds: 3400);
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(vsync: this, duration: widget.close ? _closeDuration : _slowDuration)..repeat(reverse: true);
+    _reveal = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..forward();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AmbientGradientCard old) {
+    super.didUpdateWidget(old);
+    if (widget.close != old.close) {
+      _c.duration = widget.close ? _closeDuration : _slowDuration;
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    _reveal.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([_c, _reveal]),
+      builder: (context, child) {
+        final ambientMid = Color.lerp(widget.close ? _closeMidA : _twilightA, widget.close ? _closeMidB : _twilightB, _c.value)!;
+        final ambientEnd = Color.lerp(widget.close ? _closeEndA : _emberA, widget.close ? _closeEndB : _emberB, _c.value)!;
+        final bloom = Curves.easeOut.transform(_reveal.value);
+        final mid = Color.lerp(_dusk, ambientMid, bloom)!;
+        final end = Color.lerp(_dusk, ambientEnd, bloom)!;
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(T.rL),
+            gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [_dusk, mid, end]),
+          ),
+          child: child,
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+/// A vertical gauge instead of a ring — [topWhole] and [bottomWhole] are
+/// the two round numbers the current weight sits between, [fractionDown]
+/// is how far from the top one toward the bottom one (0 = at [topWhole],
+/// 1 = at [bottomWhole]). Ties the visual directly to numbers that count
+/// *down*, which a ring doesn't communicate on its own.
+class _DescentRail extends StatelessWidget {
+  final double topWhole;
+  final double bottomWhole;
+  final double fractionDown;
+  final bool close;
+  const _DescentRail({required this.topWhole, required this.bottomWhole, required this.fractionDown, required this.close});
+
+  static const _trackHeight = 84.0;
+  static const _markerBox = 22.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final fillHeight = _trackHeight * fractionDown;
+    return Column(
+      children: [
+        Text(_fmtKg(topWhole), style: mono(fontSize: 10.5, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.5))),
+        SizedBox(
+          width: _markerBox,
+          height: _trackHeight,
+          child: Stack(clipBehavior: Clip.none, alignment: Alignment.topCenter, children: [
+            Center(
+              child: Container(width: 5, height: _trackHeight, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(3))),
+            ),
+            Positioned(
+              top: 0,
+              child: Container(
+                width: 5,
+                height: fillHeight.clamp(0.0, _trackHeight),
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(3)),
+              ),
+            ),
+            Positioned(
+              top: (fillHeight - _markerBox / 2).clamp(-_markerBox / 2, _trackHeight - _markerBox / 2),
+              child: close ? const _PulseMarker() : const _StaticMarker(),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 6),
+        Text(_fmtKg(bottomWhole), style: mono(fontSize: 10.5, fontWeight: FontWeight.w700, color: Colors.white)),
+      ],
+    );
+  }
+}
+
+class _StaticMarker extends StatelessWidget {
+  const _StaticMarker();
+  @override
+  Widget build(BuildContext context) {
+    return Stack(alignment: Alignment.center, children: [
+      Container(width: 22, height: 22, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.22))),
+      Container(width: 13, height: 13, decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white)),
+    ]);
+  }
+}
+
+/// The "so close" state's marker — a slow glow instead of sitting still,
+/// so the card looks more alive exactly when it genuinely is closer, with
+/// nothing counting down and nothing that can "break".
+class _PulseMarker extends StatefulWidget {
+  const _PulseMarker();
+  @override
+  State<_PulseMarker> createState() => _PulseMarkerState();
+}
+
+class _PulseMarkerState extends State<_PulseMarker> with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500))..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) {
+        final t = _c.value;
+        return Container(
+          width: 13,
+          height: 13,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white,
+            boxShadow: [BoxShadow(color: const Color(0xFFFFC24B).withValues(alpha: 0.3 + 0.35 * t), blurRadius: 10 + 8 * t, spreadRadius: 2 + 3 * t)],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PulseDot extends StatefulWidget {
+  const _PulseDot();
+  @override
+  State<_PulseDot> createState() => _PulseDotState();
+}
+
+class _PulseDotState extends State<_PulseDot> with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500))..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) => Opacity(
+        opacity: 0.5 + 0.5 * _c.value,
+        child: Container(width: 6, height: 6, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFFFC24B))),
+      ),
+    );
+  }
+}
+
+/// Bars again (not the ridge-line alternative) — the fix for "cramped" is
+/// giving each day real width and letting the strip scroll horizontally
+/// instead of squeezing 14 of them into one fixed-width card.
 class _DayStripCard extends StatelessWidget {
   final KgWindow window;
-  final int milestoneNumber;
   final void Function(KgDayBar) onTapDay;
-  const _DayStripCard({required this.window, required this.milestoneNumber, required this.onTapDay});
+  const _DayStripCard({required this.window, required this.onTapDay});
 
   @override
   Widget build(BuildContext context) {
@@ -277,32 +589,53 @@ class _DayStripCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          SizedBox(
-            height: 44,
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            reverse: true, // opens scrolled to today, the end of the strip
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: window.days.map((d) {
-                final heightFrac = d.logged ? (d.deficit.abs() / maxAbs).clamp(0.12, 1.0) : 0.0;
+                final isToday = identical(d, window.days.last);
+                final heightFrac = d.logged ? (d.deficit.abs() / maxAbs).clamp(0.1, 1.0) : 0.0;
                 final color = !d.logged ? T.line : (d.deficit >= 0 ? T.success : T.danger);
-                return Expanded(
+                final dayLabel = d.date.length >= 10 ? int.parse(d.date.substring(8, 10)).toString() : '';
+                return Padding(
+                  padding: const EdgeInsets.only(right: 9),
                   child: GestureDetector(
                     key: ValueKey('kg-day-${d.date}'),
                     behavior: HitTestBehavior.opaque,
                     onTap: d.logged ? () => onTapDay(d) : null,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                      child: Stack(alignment: Alignment.bottomCenter, children: [
-                        Positioned(bottom: 0, left: 0, right: 0, child: Container(height: 1, color: T.line)),
-                        FractionallySizedBox(
-                          heightFactor: d.logged ? heightFrac : 0.04,
-                          child: Container(decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+                    child: Column(
+                      children: [
+                        SizedBox(
+                          width: 22,
+                          height: 82,
+                          child: Stack(alignment: Alignment.bottomCenter, children: [
+                            Positioned(bottom: 0, left: 0, right: 0, child: Container(height: 1, color: T.line)),
+                            FractionallySizedBox(
+                              heightFactor: d.logged ? heightFrac : 0.05,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: color,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: isToday ? Border.all(color: T.hero, width: 2) : null,
+                                ),
+                              ),
+                            ),
+                          ]),
                         ),
-                      ]),
+                        const SizedBox(height: 6),
+                        Text(dayLabel, style: mono(fontSize: 8.5, fontWeight: isToday ? FontWeight.w800 : FontWeight.w500, color: isToday ? T.hero : T.faint)),
+                      ],
                     ),
                   ),
                 );
               }).toList(),
             ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text('← scroll for earlier days', style: TextStyle(fontSize: 9.5, color: T.faint)),
           ),
         ],
       ),
@@ -312,20 +645,24 @@ class _DayStripCard extends StatelessWidget {
 
 class _MilestonesCard extends StatelessWidget {
   final KgProgress progress;
-  const _MilestonesCard({required this.progress});
+  final NextWholeKg? nextWhole;
+  const _MilestonesCard({required this.progress, required this.nextWhole});
 
   @override
   Widget build(BuildContext context) {
     final ordered = progress.reached.reversed.toList();
+    final gap = nextWhole;
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Eyebrow('Kilograms so far', margin: EdgeInsets.only(bottom: 4)),
           _row(
-            leading: _KgRing(fraction: progress.currentFraction, size: 30, stroke: 3),
-            title: progress.currentWeight != null ? '≈${_fmtKg(progress.currentWeight!)} kg — in progress' : 'Kg ${progress.currentNumber} — in progress',
-            sub: '${(progress.currentFraction * 100).round()}% there',
+            leading: _KgRing(fraction: gap != null ? (1 - gap.gap).clamp(0.0, 1.0) : progress.currentFraction, size: 30, stroke: 3),
+            title: gap != null
+                ? '${_fmtGapKg(gap.gap)} kg to ${_fmtKg(gap.target)} kg'
+                : (progress.currentWeight != null ? '≈${_fmtKg(progress.currentWeight!)} kg — in progress' : 'Kg ${progress.currentNumber} — in progress'),
+            sub: gap != null ? 'in progress' : '${(progress.currentFraction * 100).round()}% there',
             last: ordered.isEmpty,
           ),
           for (var i = 0; i < ordered.length; i++)

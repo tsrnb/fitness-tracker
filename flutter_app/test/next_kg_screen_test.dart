@@ -157,7 +157,12 @@ void main() {
     expect(todayBar, findsOneWidget);
     await tester.ensureVisible(todayBar);
     await tester.tap(todayBar);
-    await tester.pumpAndSettle();
+    // Not pumpAndSettle: the hero's ambient gradient now animates
+    // continuously (by design — see _AmbientGradientCard), so "no more
+    // frames scheduled" never arrives. A fixed pump past the sheet's own
+    // entrance transition is enough to let it finish opening.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
     expect(tester.takeException(), isNull);
     expect(find.textContaining('Counted toward kg'), findsOneWidget);
     expect(find.text('You ate'), findsOneWidget);
@@ -176,12 +181,15 @@ void main() {
 
     expect(find.text('Weight loss progress'), findsOneWidget);
     await tester.tap(find.text('Weight loss progress'));
-    await tester.pumpAndSettle();
+    // Not pumpAndSettle — see note above.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
     expect(tester.takeException(), isNull);
 
     // Landed on the full screen — its back button + disclosure card are
     // proof it's the pushed NextKgScreen, not still the tab.
     expect(find.byType(NextKgScreen), findsOneWidget);
+    await tester.ensureVisible(find.text('How this works'));
     expect(find.text('How this works'), findsOneWidget);
   });
 
@@ -202,7 +210,9 @@ void main() {
     expect(find.text('Ask AI why'), findsOneWidget);
     await tester.ensureVisible(find.text('Ask AI why'));
     await tester.tap(find.text('Ask AI why'));
-    await tester.pumpAndSettle();
+    // Not pumpAndSettle — see note above.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
     expect(tester.takeException(), isNull);
     expect(find.textContaining("isn't set up for this build"), findsOneWidget);
   });

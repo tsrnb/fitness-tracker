@@ -302,4 +302,30 @@ void main() {
       expect(tight, isNotNull);
     });
   });
+
+  group('computeNextWholeKg', () {
+    test('null current weight -> null', () {
+      expect(computeNextWholeKg(null), isNull);
+    });
+
+    test('a fractional weight targets the whole number just below it', () {
+      final r = computeNextWholeKg(75.4);
+      expect(r, isNotNull);
+      expect(r!.target, 75.0);
+      expect(r.gap, closeTo(0.4, 0.001));
+    });
+
+    test('sitting exactly on a whole number targets a full kg further down, not 0', () {
+      final r = computeNextWholeKg(75.0);
+      expect(r, isNotNull);
+      expect(r!.target, 74.0);
+      expect(r.gap, closeTo(1.0, 0.001));
+    });
+
+    test('the gap is always positive, regardless of how close', () {
+      final r = computeNextWholeKg(75.001);
+      expect(r!.gap, greaterThan(0));
+      expect(r.target, 75.0);
+    });
+  });
 }
