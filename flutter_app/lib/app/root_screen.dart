@@ -9,7 +9,7 @@ import '../features/profile/presentation/profile_picker_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/training/presentation/train_screen.dart';
 import '../features/exercises/presentation/library_screen.dart';
-import '../features/exercises/presentation/exercise_detail_sheet.dart';
+import '../features/exercises/presentation/exercise_detail_screen.dart';
 import '../features/progress/presentation/progress_screen.dart';
 import '../features/nutrition/presentation/nutrition_screen.dart';
 import '../features/plan/presentation/plan_screen.dart';
@@ -149,9 +149,8 @@ class _RootScreenState extends ConsumerState<RootScreen> {
                           app: app,
                           controller: controller,
                           initialDay: trainDay,
-                          openExercise: (name) => showAppSheet(context, ExerciseDetailSheet(name: name)),
                         ),
-                        LibraryScreen(openExercise: (name) => showAppSheet(context, ExerciseDetailSheet(name: name))),
+                        LibraryScreen(openExercise: (name) => ExerciseDetailScreen.push(context, name)),
                         ProgressScreen(
                           app: app,
                           controller: controller,
