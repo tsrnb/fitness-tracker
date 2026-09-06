@@ -11,13 +11,20 @@ import '../domain/exercise_media.dart';
 ///
 /// Returns null when neither has the exercise — callers treat that as "don't
 /// show one", never an error.
+/// Where the compressed Vital clips are served from. They live in
+/// `assets/exercises/` in this repo and the gh-pages deploy publishes them at
+/// this URL (`video/mp4`, CORS `*`) — served over the network rather than as a
+/// Flutter asset because `VideoPlayerController.asset` doesn't resolve reliably
+/// on Flutter web under a non-root base-href. Point this at a real CDN later.
+const String _vitalBase =
+    'https://tsrnb.github.io/fitness-tracker/assets/assets/exercises/';
+
 ExerciseMedia? exerciseMediaFor(String exerciseName) {
   final file = _vitalAsset[exerciseName];
   if (file != null) {
     return ExerciseMedia(
-      source: 'assets/exercises/$file',
+      source: '$_vitalBase$file',
       kind: ExerciseMediaKind.mp4,
-      isAsset: true,
     );
   }
   final gif = _gifFallback[exerciseName];
@@ -35,7 +42,7 @@ bool hasExerciseAnimation(String exerciseName) =>
     _vitalAsset.containsKey(exerciseName) ||
     _gifFallback.containsKey(exerciseName);
 
-// ── Vital Animations (bundled MP4) — curated from the "50 gym workouts" pack ──
+// ── Vital Animations (MP4) — curated from the "50 gym workouts" pack ──────────
 const Map<String, String> _vitalAsset = {
   'Arnold Press': 'arnold-press.mp4',
   'Barbell Squat': 'barbell-squat.mp4',
