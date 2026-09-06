@@ -1,23 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
 import '../../../shared/theme.dart';
 import '../domain/exercise_media.dart';
 import '../data/exercise_media_repository.dart';
+import 'clip_view/clip_view.dart';
 
-/// Plays an exercise's Vital Animations clip — autoplay, muted, looping, no
-/// controls. The clip renders at its own (original) aspect ratio on a white
-/// field, never stretched or cropped.
+/// Plays an exercise's animation — a Vital MP4, or a fallback GIF — autoplay,
+/// muted, looping, no controls. It renders at its original aspect ratio on a
+/// white field, never stretched or cropped. Spinner while it loads; a
+/// non-blocking "Animation unavailable · Retry" on failure.
 ///
-/// Mount this **only on the exercise detail screen** — never in a list. The
-/// controller is created on mount and disposed with the route.
+/// Mount this **only on the exercise detail screen** — never in a list.
 ///
-/// Renders nothing when the exercise has no Vital clip, so callers can drop it
+/// Renders nothing when the exercise has no animation, so callers can drop it
 /// in unconditionally.
 class ExerciseAnimationWidget extends StatefulWidget {
   final String exerciseName;
 
-  /// Optional fixed frame width:height. When null the widget fills its parent
-  /// and letterboxes the clip (in white) to keep its original aspect ratio.
+  /// Optional fixed frame width:height. When null the widget fills its parent.
   final double? aspectRatio;
 
   const ExerciseAnimationWidget({
@@ -33,62 +32,32 @@ class ExerciseAnimationWidget extends StatefulWidget {
 
 class _ExerciseAnimationWidgetState extends State<ExerciseAnimationWidget> {
   ExerciseMedia? _media;
-  VideoPlayerController? _controller;
-  Object? _error;
+  bool _ready = false;
+  bool _failed = false;
+  int _attempt = 0;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _media = exerciseMediaFor(widget.exerciseName);
   }
 
   @override
   void didUpdateWidget(covariant ExerciseAnimationWidget old) {
     super.didUpdateWidget(old);
-    if (old.exerciseName != widget.exerciseName) _load();
-  }
-
-  Future<void> _load() async {
-    _disposeController();
-    _error = null;
-    final media = exerciseMediaFor(widget.exerciseName);
-    _media = media;
-    if (media == null || media.kind != ExerciseMediaKind.mp4) {
-      if (mounted) setState(() {});
-      return;
-    }
-    final c = media.isAsset
-        ? VideoPlayerController.asset(media.source)
-        : VideoPlayerController.networkUrl(Uri.parse(media.source));
-    _controller = c;
-    try {
-      await c.initialize();
-      await c.setLooping(true);
-      await c.setVolume(0);
-      await c.play();
-      if (mounted) setState(() {});
-    } catch (e) {
-      if (mounted) setState(() => _error = e);
+    if (old.exerciseName != widget.exerciseName) {
+      _media = exerciseMediaFor(widget.exerciseName);
+      _ready = false;
+      _failed = false;
+      _attempt = 0;
     }
   }
 
-  void _disposeController() {
-    _controller?.dispose();
-    _controller = null;
-  }
-
-  void _retry() {
-    setState(() => _attempt++);
-    _load();
-  }
-
-  @override
-  void dispose() {
-    _disposeController();
-    super.dispose();
-  }
-
-  int _attempt = 0;
+  void _retry() => setState(() {
+    _ready = false;
+    _failed = false;
+    _attempt++;
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -100,8 +69,10 @@ class _ExerciseAnimationWidgetState extends State<ExerciseAnimationWidget> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          _content(media),
-          if (media.attribution != null)
+          _mediaWidget(media),
+          if (!_ready && !_failed) const _AnimationLoading(),
+          if (_failed) _AnimationError(onRetry: _retry),
+          if (media.attribution != null && _ready)
             Positioned(
               right: 8,
               bottom: 6,
@@ -121,30 +92,39 @@ class _ExerciseAnimationWidgetState extends State<ExerciseAnimationWidget> {
     );
   }
 
-  // Both kinds render at their original aspect ratio, centred, white letterbox
-  // where they don't fill — never stretched or cropped.
-  Widget _content(ExerciseMedia media) {
-    if (_error != null) return _AnimationError(onRetry: _retry);
-
+  Widget _mediaWidget(ExerciseMedia media) {
+    final key = ValueKey('${media.source}#$_attempt');
     if (media.kind == ExerciseMediaKind.mp4) {
-      final c = _controller;
-      if (c == null || !c.value.isInitialized) return const _AnimationLoading();
-      return Center(
-        child: AspectRatio(
-          aspectRatio: c.value.aspectRatio,
-          child: VideoPlayer(c),
-        ),
+      return ClipView(
+        key: key,
+        url: media.source,
+        onReady: () {
+          if (mounted && !_ready) setState(() => _ready = true);
+        },
+        onError: () {
+          if (mounted && !_failed) setState(() => _failed = true);
+        },
       );
     }
-
     return Image.network(
       media.source,
-      key: ValueKey('${media.source}#$_attempt'),
+      key: key,
       fit: BoxFit.contain,
       gaplessPlayback: true,
-      loadingBuilder: (context, child, progress) =>
-          progress == null ? child : const _AnimationLoading(),
-      errorBuilder: (context, error, stack) => _AnimationError(onRetry: _retry),
+      frameBuilder: (context, child, frame, wasSync) {
+        if (frame != null && !_ready) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && !_ready) setState(() => _ready = true);
+          });
+        }
+        return child;
+      },
+      errorBuilder: (context, error, stack) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_failed) setState(() => _failed = true);
+        });
+        return const SizedBox.shrink();
+      },
     );
   }
 }
