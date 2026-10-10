@@ -12,6 +12,7 @@ import '../../nutrition/presentation/log_food_sheet.dart';
 import '../../insights/domain/insights_engine.dart';
 import '../../insights/presentation/insight_actions.dart';
 import '../../insights/presentation/widgets/insight_card.dart';
+import '../../calibration/presentation/widgets/calibration_status_card.dart';
 import 'rest_day_screen.dart';
 import 'health_sync_banner.dart';
 
@@ -59,19 +60,31 @@ class DashboardScreen extends StatelessWidget {
             child: Text(fmtFull().toUpperCase(), style: mono(fontSize: 11.5, color: T.faint).copyWith(letterSpacing: 1)),
           ),
           // One slot, highest-priority insight only — a wall of AI nags
-          // would train people to stop reading this screen at all.
-          for (final insight in InsightsEngine.active(app.data, today, limit: 1))
+          // would train people to stop reading this screen at all. A
+          // running calibration takes the slot outright rather than
+          // competing through `allInsightRules`: `Insight` has no visual
+          // room for a trend sparkline, and the engine has no forced-
+          // priority concept beyond rule order (which the Weight tab's own
+          // insight filter already depends on) — so this is special-cased
+          // here instead of bent into the generic model.
+          if (app.data.calibration?['status'] == 'running')
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: InsightCard(
-                insight: insight,
-                onAction: insightAction(context, insight, app, controller, goTab: go),
-                onDismiss: () {
-                  if (controller.current.user == null) return;
-                  controller.patchSettings('insightsDismissed', InsightsEngine.withDismissed(app.data, insight.id));
-                },
+              child: CalibrationStatusCard(app: app, controller: controller),
+            )
+          else
+            for (final insight in InsightsEngine.active(app.data, today, limit: 1))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: InsightCard(
+                  insight: insight,
+                  onAction: insightAction(context, insight, app, controller, goTab: go),
+                  onDismiss: () {
+                    if (controller.current.user == null) return;
+                    controller.patchSettings('insightsDismissed', InsightsEngine.withDismissed(app.data, insight.id));
+                  },
+                ),
               ),
-            ),
           // No HealthKit/Health Connect equivalent exists in a browser —
           // Health Sync is a mobile-only feature, so the banner is simply
           // absent on web rather than showing a permanently-failing state.

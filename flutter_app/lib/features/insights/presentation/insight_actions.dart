@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../app/app_state.dart';
+import '../../../shared/widgets/atoms.dart' show showAppSheet;
 import '../../progress/presentation/next_kg_screen.dart';
+import '../../progress/presentation/widgets/weigh_in_sheet.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../domain/insight.dart';
 
@@ -19,7 +21,7 @@ VoidCallback? insightAction(
   required void Function(String tab) goTab,
 }) {
   if (insight.id.startsWith('weight-log-gap:')) {
-    return () => goTab('progress'); // Progress opens on its Weight tab, weigh-in logger right at the top
+    return () => showAppSheet(context, WeighInSheet(app: app, controller: controller));
   }
   if (insight.id.startsWith('plateau:')) {
     return () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NextKgScreen(app: app, controller: controller)));

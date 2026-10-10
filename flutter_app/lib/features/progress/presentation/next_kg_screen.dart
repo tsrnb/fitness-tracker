@@ -6,6 +6,9 @@ import '../../../app/app_state.dart';
 import '../data/weight_insight_service.dart';
 import '../domain/kg_progress.dart';
 import '../../nutrition/domain/ai_food_item.dart' show AiConfigException, AiParseException;
+import '../../calibration/domain/calibration_engine.dart';
+import '../../calibration/presentation/calibration_intro_screen.dart';
+import '../../calibration/presentation/calibration_dashboard_screen.dart';
 import 'widgets/kg_day_detail_sheet.dart';
 
 /// "76.4" without a pointless trailing ".0" when the weight happens to
@@ -117,7 +120,19 @@ class _NextKgScreenState extends State<NextKgScreen> {
             _DayStripCard(window: window, onTapDay: (bar) => _openDay(bar, progress.currentNumber)),
             const SizedBox(height: 12),
             _MilestonesCard(progress: progress, nextWhole: nextWhole),
-            if (gap != null) ...[const SizedBox(height: 12), _GapInsightCard(gap: gap)],
+            if (gap != null) ...[
+              const SizedBox(height: 12),
+              _GapInsightCard(gap: gap),
+            ],
+            // Independent of the live gap check above once a calibration
+            // actually exists — a running/completed calibration must stay
+            // reachable here even if a later, healthier weigh-in makes
+            // computeLatestGap stop firing; only the initial "start" CTA
+            // depends on a gap currently being present.
+            if (gap != null || widget.app.data.calibration != null) ...[
+              const SizedBox(height: 12),
+              _CalibrationEntryCard(app: widget.app, controller: widget.controller, onReturn: () => setState(() {})),
+            ],
             const SizedBox(height: 12),
             const _DisclosureCard(),
           ],
@@ -845,6 +860,108 @@ class _GapInsightCardState extends State<_GapInsightCard> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// The 14-Day Calibration entry point — deliberately placed right after
+/// [_GapInsightCard] rather than competing with it: the gap card names the
+/// discrepancy, this card is the next step for actually resolving it.
+/// Reads the single [AppData.calibration] record to show one of three
+/// states instead of always being a bare "start" CTA.
+class _CalibrationEntryCard extends StatelessWidget {
+  final AppState app;
+  final AppController controller;
+  // `NextKgScreen` is a plain pushed screen, not watching the provider —
+  // popping back from Intro/Mode/Dashboard reveals it again without ever
+  // re-running its build(), so reading `controller.current` above alone
+  // isn't enough on its own; this is what actually forces that rebuild.
+  final VoidCallback onReturn;
+  const _CalibrationEntryCard({required this.app, required this.controller, required this.onReturn});
+
+  @override
+  Widget build(BuildContext context) {
+    // `controller.current`, not `app` — this card can still be showing an
+    // older "running"/"complete" state from before the calibration was
+    // just finished/reset elsewhere (NextKgScreen itself isn't watching the
+    // provider, so it doesn't get rebuilt on that write). Reading live means
+    // a stale card correctly falls through to the "start a new one" state
+    // instead of dangling on a calibration that no longer exists.
+    final freshApp = controller.current;
+    final calibration = freshApp.data.calibration;
+    final today = todayStr(freshApp.data.settings);
+
+    // A finished study that's aged out is cleared here too (belt-and-braces
+    // with the load-time sweep) — schedule the write and fall through to the
+    // fresh-start card for this build; the next build sees a null record.
+    final expired = calibration != null && calibrationExpired(calibration, today);
+    if (expired) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => controller.update('calibration', (_) => null));
+    }
+
+    if (calibration == null || expired) {
+      return _card(
+        context,
+        title: 'Want a clearer answer?',
+        body:
+            "A 14-day calibration compares what your plan predicts against what actually happens — so we can tell logging noise from water weight from an estimate that's just off.",
+        cta: 'Start 14-Day Calibration',
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CalibrationIntroScreen(app: freshApp, controller: controller))).then((_) => onReturn()),
+      );
+    }
+
+    final status = calibration['status'] as String? ?? 'running';
+    final running = status == 'running' && !isFinished(calibration, today);
+    if (running) {
+      final day = dayNumber(calibration, today);
+      final total = totalDays(calibration);
+      return _card(
+        context,
+        title: 'Calibration running — Day $day/$total',
+        body: 'Keep logging your weight and food — we\'ll compare expected vs. observed once the window closes.',
+        cta: 'View calibration',
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CalibrationDashboardScreen(app: freshApp, controller: controller))).then((_) => onReturn()),
+      );
+    }
+
+    final left = daysUntilCalibrationCleared(calibration, today);
+    return _card(
+      context,
+      title: 'Calibration complete — see results',
+      body: left == null
+          ? 'Your 14-day window is done. See how it compared to the plan, and what\'s worth investigating next.'
+          : left <= 1
+              ? 'Your 14-day window is done. This study clears ${left == 0 ? 'today' : 'tomorrow'} — open it while it\'s here.'
+              : 'Your 14-day window is done. This study stays here for $left more days, then it clears.',
+      cta: 'View results',
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CalibrationDashboardScreen(app: freshApp, controller: controller))).then((_) => onReturn()),
+    );
+  }
+
+  Widget _card(BuildContext context, {required String title, required String body, required String cta, required VoidCallback onTap}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: T.accentDim, border: Border.all(color: T.accentSoft), borderRadius: BorderRadius.circular(T.rL)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Text('🧪', style: TextStyle(fontSize: 14)),
+            const SizedBox(width: 8),
+            Expanded(child: Text(title, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: T.text))),
+          ]),
+          Padding(padding: const EdgeInsets.only(top: 8, bottom: 12), child: Text(body, style: TextStyle(fontSize: 12, color: T.muted, height: 1.5))),
+          GestureDetector(
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(color: T.accent, borderRadius: BorderRadius.circular(999)),
+              alignment: Alignment.center,
+              child: Text(cta, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12.5)),
+            ),
+          ),
         ],
       ),
     );

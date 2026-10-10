@@ -113,6 +113,13 @@ class Type {
 
   /// Secondary/supporting copy under a title.
   static TextStyle get caption => GoogleFonts.manrope(fontSize: 12.5, fontWeight: FontWeight.w500, height: 1.4, color: T.muted);
+
+  /// A serif display voice, used deliberately in one place — the 14-Day
+  /// Calibration's end-of-window finding, where the AI's read *is* the
+  /// screen and should carry the weight of a written conclusion rather than
+  /// another card heading. The app is otherwise Manrope + JetBrains Mono;
+  /// this is the one considered exception.
+  static TextStyle get finding => GoogleFonts.newsreader(fontSize: 25, fontWeight: FontWeight.w500, height: 1.24, letterSpacing: 0, color: T.text);
 }
 
 ThemeData buildAppTheme() {

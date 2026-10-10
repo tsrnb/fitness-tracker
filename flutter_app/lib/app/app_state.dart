@@ -6,8 +6,31 @@ import '../shared/lib/storage.dart';
 import '../shared/lib/health_service.dart';
 import '../shared/lib/helpers.dart';
 import '../shared/theme.dart';
+import '../features/calibration/domain/calibration_engine.dart' show calibrationExpired;
 
 /// Mirrors the React app's DEFAULT_DATA / AppContext shape.
+/// Numeric settings that an older settings form could have persisted as text
+/// (e.g. "150"); every reader casts them `as num?`, so coerce them here.
+Map<String, dynamic> sanitizeSettings(Map<String, dynamic> s) {
+  const numericKeys = [
+    'proteinGoal', 'carbGoal', 'fatGoal', 'fiberGoal', 'calorieGoal', 'stepGoal',
+    'calorieBuffer', 'age', 'height', 'currentWeight', 'targetWeight',
+    'paceDeficitKcal', 'paceSurplusKcal',
+  ];
+  for (final k in numericKeys) {
+    final v = s[k];
+    if (v is String) {
+      final n = num.tryParse(v.trim());
+      if (n != null) {
+        s[k] = n;
+      } else {
+        s.remove(k);
+      }
+    }
+  }
+  return s;
+}
+
 class AppData {
   final Map<String, dynamic> settings;
   final List<Map<String, dynamic>> weight; // [{date, weight}]
@@ -23,6 +46,12 @@ class AppData {
   // 11g protein"), persisted per-user so they carry across chat sessions and
   // app restarts, unlike the rest of a chat's conversation context.
   final Map<String, dynamic> aiFoodMemory;
+  // The single in-progress-or-most-recent 14-Day Calibration record, if any
+  // has ever been started — {mode, status, startDate, endDate, baseline,
+  // result?}. See lib/features/calibration/domain/calibration_engine.dart
+  // for the full shape. Starting a new calibration overwrites this; there's
+  // no history of past ones yet.
+  final Map<String, dynamic>? calibration;
 
   const AppData({
     this.settings = const {},
@@ -35,12 +64,13 @@ class AppData {
     this.photos = const [],
     this.plan,
     this.aiFoodMemory = const {},
+    this.calibration,
   });
 
   static const empty = AppData();
 
   factory AppData.fromMap(Map<String, dynamic> m) => AppData(
-        settings: Map<String, dynamic>.from(m['settings'] ?? {}),
+        settings: sanitizeSettings(Map<String, dynamic>.from(m['settings'] ?? {})),
         weight: List<Map<String, dynamic>>.from((m['weight'] ?? []).map((e) => Map<String, dynamic>.from(e))),
         history: Map<String, dynamic>.from(m['history'] ?? {}),
         sessions: Map<String, dynamic>.from(m['sessions'] ?? {}),
@@ -50,6 +80,7 @@ class AppData {
         photos: List<dynamic>.from(m['photos'] ?? []),
         plan: m['plan'] != null ? Map<String, dynamic>.from(m['plan']) : null,
         aiFoodMemory: Map<String, dynamic>.from(m['aiFoodMemory'] ?? {}),
+        calibration: m['calibration'] != null ? Map<String, dynamic>.from(m['calibration']) : null,
       );
 
   AppData copyWith({
@@ -63,6 +94,7 @@ class AppData {
     List<dynamic>? photos,
     Object? plan = _unset,
     Map<String, dynamic>? aiFoodMemory,
+    Object? calibration = _unset,
   }) {
     return AppData(
       settings: settings ?? this.settings,
@@ -75,6 +107,7 @@ class AppData {
       photos: photos ?? this.photos,
       plan: identical(plan, _unset) ? this.plan : plan as Map<String, dynamic>?,
       aiFoodMemory: aiFoodMemory ?? this.aiFoodMemory,
+      calibration: identical(calibration, _unset) ? this.calibration : calibration as Map<String, dynamic>?,
     );
   }
 
@@ -100,6 +133,8 @@ class AppData {
         return plan;
       case 'aiFoodMemory':
         return aiFoodMemory;
+      case 'calibration':
+        return calibration;
     }
     return null;
   }
@@ -166,6 +201,14 @@ class AppController extends StateNotifier<AppState> {
       view: AppView.app,
       tab: 'home',
     );
+    // Sweep a finished 14-Day Calibration that's aged past its retention
+    // window (the user could revisit its results from the Weight page until
+    // now). One shot on load is enough — the results screen and the Weight-
+    // page entry card each re-check on open too.
+    final cal = data.calibration;
+    if (cal != null && calibrationExpired(cal, todayStr(data.settings))) {
+      await update('calibration', (_) => null);
+    }
     // No HealthKit/Health Connect equivalent exists on web — skip entirely
     // rather than spend cycles on calls that can never succeed there.
     if (!kIsWeb) {
@@ -213,7 +256,7 @@ class AppController extends StateNotifier<AppState> {
     final uid = state.user!.id;
     await _backend.setUserKV(uid, key, next);
     state = state.copyWith(data: state.data.copyWith(
-      settings: key == 'settings' ? Map<String, dynamic>.from(next) : null,
+      settings: key == 'settings' ? sanitizeSettings(Map<String, dynamic>.from(next)) : null,
       weight: key == 'weight' ? List<Map<String, dynamic>>.from(next) : null,
       history: key == 'history' ? Map<String, dynamic>.from(next) : null,
       sessions: key == 'sessions' ? Map<String, dynamic>.from(next) : null,
@@ -222,6 +265,7 @@ class AppController extends StateNotifier<AppState> {
       activity: key == 'activity' ? Map<String, dynamic>.from(next) : null,
       plan: key == 'plan' ? (next == null ? null : Map<String, dynamic>.from(next)) : _unset,
       aiFoodMemory: key == 'aiFoodMemory' ? Map<String, dynamic>.from(next) : null,
+      calibration: key == 'calibration' ? (next == null ? null : Map<String, dynamic>.from(next)) : _unset,
     ));
   }
 

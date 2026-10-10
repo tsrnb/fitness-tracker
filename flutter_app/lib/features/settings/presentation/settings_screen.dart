@@ -51,10 +51,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     f['themeMode'] ??= 'dark';
     f['dayStartMinutes'] ??= 0;
     final plan = widget.app.data.plan;
-    f['proteinGoal'] ??= plan?['proteinGoal'] ?? 0;
-    f['carbGoal'] ??= plan?['carbGoal'] ?? 0;
-    f['fatGoal'] ??= plan?['fatGoal'] ?? 0;
-    f['fiberGoal'] ??= plan?['fiberGoal'] ?? 0;
+    f['proteinGoal'] = _asInt(f['proteinGoal'] ?? plan?['proteinGoal']);
+    f['carbGoal'] = _asInt(f['carbGoal'] ?? plan?['carbGoal']);
+    f['fatGoal'] = _asInt(f['fatGoal'] ?? plan?['fatGoal']);
+    f['fiberGoal'] = _asInt(f['fiberGoal'] ?? plan?['fiberGoal']);
     // Seed the pace slider from whatever this plan is already running at
     // (if it was generated the old target-date-derived way, that's still a
     // sensible starting point), falling back to a plain moderate default.
@@ -64,17 +64,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
     f['paceSurplusKcal'] ??= (currentGoalType == 'weightGain' ? planDailyPace : null) ?? 300;
   }
 
+  static int _asInt(dynamic v) => v is num ? v.toInt() : (int.tryParse('${v ?? ''}') ?? 0);
+
   void set(String key, dynamic value) => setState(() => f[key] = value);
+
+  /// Like [set], for fields that feed the plan: the macro goals are derived
+  /// from them, so re-derive those too (manual macro edits are still free-form).
+  void setPlanInput(String key, dynamic value) {
+    f[key] = value;
+    try {
+      recalculateMacros();
+    } catch (_) {
+      setState(() {});
+    }
+  }
 
   Plan _generate() => buildPlanFromSettings(f);
 
-  void recalculateMacros() {
+  static const _macroKeys = ['proteinGoal', 'carbGoal', 'fatGoal', 'fiberGoal'];
+
+  /// Macro goals the user typed in by hand; auto-recalculation leaves these alone.
+  Set<String> get _customMacros => {...((f['customMacros'] as List?) ?? const []).cast<String>()};
+
+  String _tag(String key) => _customMacros.contains(key) ? ' · custom' : '';
+
+  void setMacro(String key, String raw) {
+    set(key, int.tryParse(raw) ?? 0);
+    f['customMacros'] = (_customMacros..add(key)).toList();
+  }
+
+  /// Re-derives macro goals from the plan. Hand-edited ones are kept unless
+  /// [resetCustom] (the explicit "Recalculate from plan" button) is set.
+  void recalculateMacros({bool resetCustom = false}) {
     final plan = _generate();
+    final derived = {
+      'proteinGoal': plan.proteinGoal,
+      'carbGoal': plan.carbGoal,
+      'fatGoal': plan.fatGoal,
+      'fiberGoal': plan.fiberGoal,
+    };
+    final custom = resetCustom ? <String>{} : _customMacros;
     setState(() {
-      f['proteinGoal'] = plan.proteinGoal;
-      f['carbGoal'] = plan.carbGoal;
-      f['fatGoal'] = plan.fatGoal;
-      f['fiberGoal'] = plan.fiberGoal;
+      for (final k in _macroKeys) {
+        if (!custom.contains(k)) f[k] = derived[k];
+      }
+      f['customMacros'] = custom.toList();
     });
   }
 
@@ -93,10 +127,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final plan = _generate();
     profile['calorieGoal'] = plan.calorieGoal;
     profile['stepGoal'] = plan.stepGoal;
-    profile['proteinGoal'] = f['proteinGoal'];
-    profile['carbGoal'] = f['carbGoal'];
-    profile['fatGoal'] = f['fatGoal'];
-    profile['fiberGoal'] = f['fiberGoal'];
+    profile['proteinGoal'] = _asInt(f['proteinGoal']);
+    profile['carbGoal'] = _asInt(f['carbGoal']);
+    profile['fatGoal'] = _asInt(f['fatGoal']);
+    profile['fiberGoal'] = _asInt(f['fiberGoal']);
     widget.controller.update('settings', (_) => profile);
     widget.controller.update('plan', (_) => plan.toJson());
     _navKey.currentState!.popUntil((r) => r.isFirst);
@@ -333,16 +367,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           settingsTextField(context, label: 'Name', value: '${f['name'] ?? ''}', onChange: (v) => set('name', v)),
           Row(children: [
-            Expanded(child: settingsTextField(context, label: 'Age', value: '${f['age'] ?? ''}', onChange: (v) => set('age', v), num: true)),
+            Expanded(child: settingsTextField(context, label: 'Age', value: '${f['age'] ?? ''}', onChange: (v) => setPlanInput('age', v), num: true)),
             const SizedBox(width: 10),
-            Expanded(child: settingsTextField(context, label: 'Height (cm)', value: '${f['height'] ?? ''}', onChange: (v) => set('height', v), num: true)),
+            Expanded(child: settingsTextField(context, label: 'Height (cm)', value: '${f['height'] ?? ''}', onChange: (v) => setPlanInput('height', v), num: true)),
           ]),
           Row(children: [
-            Expanded(child: settingsTextField(context, label: 'Current (kg)', value: '${f['currentWeight'] ?? ''}', onChange: (v) => set('currentWeight', v), num: true)),
+            Expanded(child: settingsTextField(context, label: 'Current (kg)', value: '${f['currentWeight'] ?? ''}', onChange: (v) => setPlanInput('currentWeight', v), num: true)),
             const SizedBox(width: 10),
-            Expanded(child: settingsTextField(context, label: 'Target (kg)', value: '${f['targetWeight'] ?? ''}', onChange: (v) => set('targetWeight', v), num: true)),
+            Expanded(child: settingsTextField(context, label: 'Target (kg)', value: '${f['targetWeight'] ?? ''}', onChange: (v) => setPlanInput('targetWeight', v), num: true)),
           ]),
-          settingsTextField(context, label: 'Target date', value: '${f['targetDate'] ?? ''}', onChange: (v) => set('targetDate', v), date: true),
+          settingsTextField(context, label: 'Target date', value: '${f['targetDate'] ?? ''}', onChange: (v) => setPlanInput('targetDate', v), date: true),
           settingsSaveButton(save),
         ],
       ),
@@ -410,7 +444,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Text('kcal / day ${isLoss ? 'below' : 'above'} maintenance', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: T.muted)),
             ],
           ),
-          PaceSlider(min: min, max: max, value: value, ceiling: ceiling, onChanged: (v) => set(paceKey, v.round())),
+          PaceSlider(min: min, max: max, value: value, ceiling: ceiling, onChanged: (v) => setPlanInput(paceKey, v.round())),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -553,7 +587,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          settingsSegmented('Goal', (f['goalType'] as String?) ?? 'fatLoss', goalOptions, (v) => set('goalType', v)),
+          settingsSegmented('Goal', (f['goalType'] as String?) ?? 'fatLoss', goalOptions, (v) => setPlanInput('goalType', v)),
           const Eyebrow('Pace'),
           _paceCard(context),
           const SizedBox(height: 12),
@@ -563,7 +597,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             MapEntry('moderate', 'Moderate'),
             MapEntry('active', 'Active'),
             MapEntry('veryActive', 'Very active'),
-          ], (v) => set('activity', v)),
+          ], (v) => setPlanInput('activity', v)),
           settingsSaveButton(save),
         ],
       ),
@@ -578,19 +612,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          settingsSegmentedInt('Calorie buffer', (f['calorieBuffer'] as num?)?.toInt() ?? 0, calorieBufferOptions, (v) => '+$v', (v) => set('calorieBuffer', v)),
+          settingsSegmentedInt('Calorie buffer', (f['calorieBuffer'] as num?)?.toInt() ?? 0, calorieBufferOptions, (v) => '+$v', (v) => setPlanInput('calorieBuffer', v)),
           Row(children: [
-            settingsMacroField('Protein', '${f['proteinGoal'] ?? 0}', (v) => set('proteinGoal', v)),
+            settingsMacroField('Protein${_tag('proteinGoal')}', '${f['proteinGoal'] ?? 0}', (v) => setMacro('proteinGoal', v)),
             const SizedBox(width: 10),
-            settingsMacroField('Carbs', '${f['carbGoal'] ?? 0}', (v) => set('carbGoal', v)),
+            settingsMacroField('Carbs${_tag('carbGoal')}', '${f['carbGoal'] ?? 0}', (v) => setMacro('carbGoal', v)),
           ]),
           Row(children: [
-            settingsMacroField('Fat', '${f['fatGoal'] ?? 0}', (v) => set('fatGoal', v)),
+            settingsMacroField('Fat${_tag('fatGoal')}', '${f['fatGoal'] ?? 0}', (v) => setMacro('fatGoal', v)),
             const SizedBox(width: 10),
-            settingsMacroField('Fiber', '${f['fiberGoal'] ?? 0}', (v) => set('fiberGoal', v)),
+            settingsMacroField('Fiber${_tag('fiberGoal')}', '${f['fiberGoal'] ?? 0}', (v) => setMacro('fiberGoal', v)),
           ]),
           GestureDetector(
-            onTap: recalculateMacros,
+            onTap: () => recalculateMacros(resetCustom: true),
             child: Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Row(mainAxisSize: MainAxisSize.min, children: [

@@ -7,6 +7,7 @@ import '../../../app/app_state.dart';
 import '../data/personal_records.dart';
 import '../data/nutrition_stats_service.dart';
 import '../domain/kg_progress.dart';
+import '../domain/weight_log.dart';
 import '../../insights/domain/insight.dart';
 import '../../insights/domain/insights_engine.dart';
 import '../../insights/presentation/insight_actions.dart';
@@ -41,22 +42,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
   void _logWeight() {
     final v = double.tryParse(wCtrl.text);
     if (v == null) return;
-    final d = todayStr(widget.app.data.settings);
-    final loggedAt = DateTime.now().millisecondsSinceEpoch;
-    widget.controller.update('weight', (prev) {
-      // Every log is kept as its own point (rather than overwriting the
-      // day's earlier reading) so logging more than once in a day still
-      // builds up a real trend instead of silently collapsing to one entry.
-      final list = List<Map<String, dynamic>>.from(prev ?? []);
-      list.add({'date': d, 'weight': v, 'loggedAt': loggedAt});
-      list.sort((a, b) {
-        final byDate = (a['date'] as String).compareTo(b['date'] as String);
-        if (byDate != 0) return byDate;
-        return ((a['loggedAt'] as num?) ?? 0).compareTo((b['loggedAt'] as num?) ?? 0);
-      });
-      return list;
-    });
-    widget.controller.patchSettings('currentWeight', v);
+    logWeightEntry(widget.controller, widget.app.data.settings, v);
     wCtrl.clear();
   }
 
@@ -209,11 +195,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
   }
 
   Widget _weightInsightCard(Insight insight) {
-    // weight-log-gap's mapped action is "go to the Weight tab" — already
-    // where this card lives, so there's nothing useful left for it to do
-    // here; the field right above is the action. Only plateau's "see why"
-    // (which opens the Next Kg screen) applies in this context.
-    final onAction = insight.id.startsWith('weight-log-gap:') ? null : insightAction(context, insight, widget.app, widget.controller, goTab: (_) {});
+    // weight-log-gap's mapped action now opens the guided WeighInSheet —
+    // worth keeping here even though the plain quick-entry field sits right
+    // above, since the sheet's pre-flight conditions are the useful part.
+    final onAction = insightAction(context, insight, widget.app, widget.controller, goTab: (_) {});
     return InsightCard(
       insight: insight,
       onAction: onAction,
