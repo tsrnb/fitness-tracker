@@ -49,9 +49,22 @@
       margin: 0;
       background-color: #0C0C0D;
     }
+    /* iOS Safari zooms the page when a focused input's font is under 16px, and
+       newer iOS ignores maximum-scale. Flutter's hidden editing <input>/
+       <textarea> inherits the TextField's size (often 13-15px) inline, so
+       override it. The element is invisible, so this doesn't change the UI. */
+    input, textarea, .flt-text-editing {
+      font-size: 16px !important;
+    }
   </style>
 </head>
 <body>
+  <script>
+    // iOS ignores user-scalable=no; block pinch/double-tap zoom explicitly.
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (e) {
+      document.addEventListener(e, function (ev) { ev.preventDefault(); });
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
