@@ -27,7 +27,7 @@ Map<String, String> swapsForDay(Map<String, dynamic> settings, String splitId, S
 List<ProgramItem> applySwaps(List<ProgramItem> items, Map<String, String> swaps) {
   return items.map((it) {
     final sub = swaps[it.name];
-    return sub == null ? it : ProgramItem(sub, it.sets, it.reps);
+    return sub == null ? it : ProgramItem(sub, it.sets, it.reps, it.kg);
   }).toList();
 }
 

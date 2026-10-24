@@ -8,6 +8,8 @@ import '../../plan/data/plan_options.dart';
 import '../domain/training_split.dart';
 import '../data/training_splits_data.dart';
 import '../data/split_effectiveness.dart';
+import '../data/custom_plan.dart';
+import 'custom_plan_editor_screen.dart';
 
 /// Full-page "Training plan" chooser (Settings → Training plan). Splits are
 /// ranked by an effectiveness score for whichever goal is selected up top —
@@ -160,6 +162,7 @@ class _TrainingPlanChooserScreenState extends State<TrainingPlanChooserScreen> {
           const SizedBox(height: 16),
           const Eyebrow('Optimize for'),
           PillTabs(options: goalOptions, value: goal, onChange: (v) => setState(() => goal = v)),
+          _customCard(),
           ...List.generate(
             ranked.length,
             (i) => StaggerIn(
@@ -169,6 +172,55 @@ class _TrainingPlanChooserScreenState extends State<TrainingPlanChooserScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _openCustomEditor() async {
+    final saved = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(
+      builder: (_) => CustomPlanEditorScreen(app: widget.app, controller: widget.controller),
+    ));
+    if (!mounted || saved == null) return;
+    final fresh = Map<String, dynamic>.from(saved);
+    setState(() {
+      _settings = fresh;
+      selectedId = activeSplit(fresh).id;
+    });
+  }
+
+  Widget _customCard() {
+    final existing = customPlanFromSettings(_settings);
+    final isActive = selectedId == customSplitId;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: AppCard(
+        borderColor: isActive ? T.hero : T.line,
+        onTap: _openCustomEditor,
+        child: Row(children: [
+          IconBubble(icon: const Icon(Icons.tune, size: 17, color: Colors.white), size: 38, background: isActive ? T.hero : T.faint),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Flexible(child: Text(existing?.name ?? 'Build your own plan', style: Type.h3, overflow: TextOverflow.ellipsis)),
+                if (isActive) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(color: T.accentDim, borderRadius: BorderRadius.circular(T.pill)),
+                    child: Text('ACTIVE', style: mono(fontSize: 9.5, color: T.hero, fontWeight: FontWeight.w700).copyWith(letterSpacing: 0.6)),
+                  ),
+                ],
+              ]),
+              const SizedBox(height: 2),
+              Text(
+                existing == null ? 'Pick exercises, sets, reps and weights' : '${existing.days.length} days · ${existing.totalSets} sets · tap to edit',
+                style: TextStyle(fontSize: 12, color: T.muted),
+              ),
+            ]),
+          ),
+          Icon(Icons.chevron_right, color: T.faint),
+        ]),
       ),
     );
   }

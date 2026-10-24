@@ -234,7 +234,7 @@ class _TrainScreenState extends State<TrainScreen> {
                             Row(
                               children: [
                                 Text(
-                                  '${it.sets} × ${it.reps}',
+                                  '${it.sets} × ${it.reps}${it.kg != null ? ' @ ${it.kg! % 1 == 0 ? it.kg!.toInt() : it.kg} kg' : ''}',
                                   style: mono(fontSize: 12, color: T.muted),
                                 ),
                                 if (allTop) ...[

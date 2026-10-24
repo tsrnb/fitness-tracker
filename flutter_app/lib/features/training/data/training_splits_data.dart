@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../domain/program.dart';
 import '../domain/training_split.dart';
+import 'custom_plan.dart';
 
 const defaultSplitId = 'ppul5';
 
@@ -283,7 +284,13 @@ TrainingSplit splitById(String? id) {
   return trainingSplits.firstWhere((s) => s.id == defaultSplitId);
 }
 
-TrainingSplit activeSplit(Map<String, dynamic> settings) => splitById(settings['trainingSplitId'] as String?);
+TrainingSplit activeSplit(Map<String, dynamic> settings) {
+  if (settings['trainingSplitId'] == customSplitId) {
+    final custom = customSplitFromSettings(settings);
+    if (custom != null) return custom;
+  }
+  return splitById(settings['trainingSplitId'] as String?);
+}
 
 /// Reads the user's (possibly reshuffled) weekly schedule from settings,
 /// falling back to [split]'s default if they've never customized it or if
