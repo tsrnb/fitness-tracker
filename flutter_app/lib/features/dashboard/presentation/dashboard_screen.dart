@@ -13,6 +13,7 @@ import '../../insights/domain/insights_engine.dart';
 import '../../insights/presentation/insight_actions.dart';
 import '../../insights/presentation/widgets/insight_card.dart';
 import '../../calibration/presentation/widgets/calibration_status_card.dart';
+import '../../muscle/presentation/widgets/muscle_dashboard_cards.dart';
 import 'rest_day_screen.dart';
 import 'health_sync_banner.dart';
 
@@ -59,6 +60,11 @@ class DashboardScreen extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(fmtFull().toUpperCase(), style: mono(fontSize: 11.5, color: T.faint).copyWith(letterSpacing: 1)),
           ),
+          if (TapeDueNudge.shouldShow(app.data))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: TapeDueNudge(app: app, controller: controller),
+            ),
           // One slot, highest-priority insight only — a wall of AI nags
           // would train people to stop reading this screen at all. A
           // running calibration takes the slot outright rather than
@@ -219,6 +225,10 @@ class DashboardScreen extends StatelessWidget {
               ),
             ],
           ),
+          if (showMuscleCard(app.data)) ...[
+            const SizedBox(height: 12),
+            MuscleDashboardCard(app: app, controller: controller),
+          ],
           const SizedBox(height: 12),
           AppCard(
             onTap: openActivity,

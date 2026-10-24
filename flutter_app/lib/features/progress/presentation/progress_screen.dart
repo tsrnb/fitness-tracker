@@ -12,6 +12,10 @@ import '../../insights/domain/insight.dart';
 import '../../insights/domain/insights_engine.dart';
 import '../../insights/presentation/insight_actions.dart';
 import '../../insights/presentation/widgets/insight_card.dart';
+import '../../muscle/data/muscle_store.dart';
+import '../../muscle/domain/muscle_stats.dart';
+import '../../muscle/presentation/muscle_screen.dart';
+import '../../muscle/presentation/widgets/muscle_bits.dart' show signed;
 import 'activity_progress_screen.dart';
 import 'daily_log_section.dart';
 import 'next_kg_screen.dart';
@@ -124,7 +128,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
         ),
       ),
       for (final insight in _weightInsights()) Padding(padding: const EdgeInsets.only(bottom: 14), child: _weightInsightCard(insight)),
-      Padding(padding: const EdgeInsets.only(bottom: 14), child: _kgTeaserCard()),
+      Padding(padding: const EdgeInsets.only(bottom: 14), child: widget.app.data.settings['goalType'] == 'weightGain' ? _muscleTeaserCard() : _kgTeaserCard()),
       AppCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -141,6 +145,50 @@ class _ProgressScreenState extends State<ProgressScreen> {
         ),
       ),
     ];
+  }
+
+  /// Muscle-gain counterpart of [_kgTeaserCard], shown instead of it when the
+  /// goal is weight gain. Opens the Muscle page (setup first if never done).
+  Widget _muscleTeaserCard() {
+    final data = widget.app.data;
+    final p = muscleProfileOf(data);
+    final g = p == null ? null : computeGain(data, p, todayStr(data.settings));
+    final sub = p == null
+        ? 'Two-minute setup, then pace, lifts and a muscle-or-fat check'
+        : g == null
+            ? 'Log a weigh-in to start tracking your pace'
+            : '${signed(g.gained)} kg gained · week ${g.weekNumber}';
+    return AppCard(
+      onTap: () => openMuscle(context, widget.app, widget.controller),
+      child: Row(children: [
+        SizedBox(
+          width: 40,
+          height: 40,
+          child: Stack(alignment: Alignment.center, children: [
+            CircularProgressIndicator(
+              value: g?.fraction.clamp(0.0, 1.0) ?? 0,
+              strokeWidth: 4,
+              backgroundColor: T.surface2,
+              valueColor: const AlwaysStoppedAnimation(T.hero),
+            ),
+          ]),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Muscle gain progress', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: T.text)),
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(sub, style: TextStyle(fontSize: 11, color: T.muted)),
+              ),
+            ],
+          ),
+        ),
+        Icon(Icons.chevron_right, size: 18, color: T.faint),
+      ]),
+    );
   }
 
   /// Compact entry point into [NextKgScreen] — a second, food-log-driven

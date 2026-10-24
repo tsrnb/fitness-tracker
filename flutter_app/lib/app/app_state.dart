@@ -52,6 +52,9 @@ class AppData {
   // for the full shape. Starting a new calibration overwrites this; there's
   // no history of past ones yet.
   final Map<String, dynamic>? calibration;
+  // Muscle-gain feature state — {level, tracked, setupDate, goalGainKg, tape,
+  // chats}; null until the first-run setup. See features/muscle/domain.
+  final Map<String, dynamic>? muscle;
 
   const AppData({
     this.settings = const {},
@@ -65,6 +68,7 @@ class AppData {
     this.plan,
     this.aiFoodMemory = const {},
     this.calibration,
+    this.muscle,
   });
 
   static const empty = AppData();
@@ -81,6 +85,7 @@ class AppData {
         plan: m['plan'] != null ? Map<String, dynamic>.from(m['plan']) : null,
         aiFoodMemory: Map<String, dynamic>.from(m['aiFoodMemory'] ?? {}),
         calibration: m['calibration'] != null ? Map<String, dynamic>.from(m['calibration']) : null,
+        muscle: m['muscle'] != null ? Map<String, dynamic>.from(m['muscle']) : null,
       );
 
   AppData copyWith({
@@ -95,6 +100,7 @@ class AppData {
     Object? plan = _unset,
     Map<String, dynamic>? aiFoodMemory,
     Object? calibration = _unset,
+    Object? muscle = _unset,
   }) {
     return AppData(
       settings: settings ?? this.settings,
@@ -108,6 +114,7 @@ class AppData {
       plan: identical(plan, _unset) ? this.plan : plan as Map<String, dynamic>?,
       aiFoodMemory: aiFoodMemory ?? this.aiFoodMemory,
       calibration: identical(calibration, _unset) ? this.calibration : calibration as Map<String, dynamic>?,
+      muscle: identical(muscle, _unset) ? this.muscle : muscle as Map<String, dynamic>?,
     );
   }
 
@@ -135,6 +142,8 @@ class AppData {
         return aiFoodMemory;
       case 'calibration':
         return calibration;
+      case 'muscle':
+        return muscle;
     }
     return null;
   }
@@ -266,6 +275,7 @@ class AppController extends StateNotifier<AppState> {
       plan: key == 'plan' ? (next == null ? null : Map<String, dynamic>.from(next)) : _unset,
       aiFoodMemory: key == 'aiFoodMemory' ? Map<String, dynamic>.from(next) : null,
       calibration: key == 'calibration' ? (next == null ? null : Map<String, dynamic>.from(next)) : _unset,
+      muscle: key == 'muscle' ? (next == null ? null : Map<String, dynamic>.from(next)) : _unset,
     ));
   }
 

@@ -5,7 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../app/app_state.dart';
 
 /// The set of `AppData` buckets included in an export/import round-trip.
-const settingsBackupKeys = ['settings', 'weight', 'history', 'sessions', 'diet', 'water', 'activity', 'plan'];
+const settingsBackupKeys = ['settings', 'weight', 'history', 'sessions', 'diet', 'water', 'activity', 'plan', 'muscle'];
 
 /// Thrown by [SettingsBackupService.pickImportPayload] when the picked file
 /// isn't valid JSON — distinct from returning `null` (user cancelled the
@@ -34,6 +34,7 @@ class SettingsBackupService {
       'water': data.water,
       'activity': data.activity,
       'plan': data.plan,
+      'muscle': data.muscle,
       'foods': app.foods.map((f) => {'name': f.name, 'kcal': f.kcal, 'protein': f.protein, 'carb': f.carb, 'fat': f.fat, 'fiber': f.fiber}).toList(),
     };
     final bytes = Uint8List.fromList(utf8.encode(jsonEncode(payload)));
