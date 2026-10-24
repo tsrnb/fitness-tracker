@@ -21,7 +21,9 @@
   <meta name="description" content="Track your cut: calories, macros, training and progress.">
   <!-- viewport-fit=cover lets the app draw into notch/home-indicator safe
        areas instead of leaving them to the bare (white) page background. -->
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- maximum-scale=1 stops iOS Safari auto-zooming the page when a text
+       field gains focus (Flutter's hidden <input> is under 16px). -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
   <!-- Matches T.bg's dark default — colors the browser chrome (and any
        sliver not yet covered by the Flutter canvas) instead of white. -->
   <meta name="theme-color" content="#0C0C0D">
