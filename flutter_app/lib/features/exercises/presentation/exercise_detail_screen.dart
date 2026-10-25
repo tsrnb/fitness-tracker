@@ -13,6 +13,7 @@ import '../data/exercise_cues_service.dart';
 import '../data/exercise_library_data.dart';
 import '../data/exercise_media_repository.dart';
 import 'exercise_animation_widget.dart';
+import '../../../shared/responsive.dart';
 
 /// Everything the detail screen needs to log a working set and swap the
 /// exercise — passed only when the screen is opened from the Train tab.
@@ -60,7 +61,7 @@ class ExerciseDetailScreen extends StatefulWidget {
     ExerciseTrainingArgs? training,
   }) {
     return Navigator.of(context).push<R>(
-      MaterialPageRoute(
+      AppRoute(
         builder: (_) => ExerciseDetailScreen(
           name: name,
           onUseInstead: onUseInstead,

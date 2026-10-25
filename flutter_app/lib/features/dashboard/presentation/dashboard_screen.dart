@@ -51,269 +51,293 @@ class DashboardScreen extends StatelessWidget {
     final stepGoal = snap.stepGoal;
     final last7 = snap.sessionsLast7Days;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    final head = <Widget>[
+      Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Text(fmtFull().toUpperCase(), style: mono(fontSize: 11.5, color: T.faint).copyWith(letterSpacing: 1)),
+      ),
+      if (TapeDueNudge.shouldShow(app.data))
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: TapeDueNudge(app: app, controller: controller),
+        ),
+      // One slot, highest-priority insight only — a wall of AI nags
+      // would train people to stop reading this screen at all. A
+      // running calibration takes the slot outright rather than
+      // competing through `allInsightRules`: `Insight` has no visual
+      // room for a trend sparkline, and the engine has no forced-
+      // priority concept beyond rule order (which the Weight tab's own
+      // insight filter already depends on) — so this is special-cased
+      // here instead of bent into the generic model.
+      if (app.data.calibration?['status'] == 'running')
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: CalibrationStatusCard(app: app, controller: controller),
+        )
+      else
+        for (final insight in InsightsEngine.active(app.data, today, limit: 1))
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: Text(fmtFull().toUpperCase(), style: mono(fontSize: 11.5, color: T.faint).copyWith(letterSpacing: 1)),
-          ),
-          if (TapeDueNudge.shouldShow(app.data))
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: TapeDueNudge(app: app, controller: controller),
-            ),
-          // One slot, highest-priority insight only — a wall of AI nags
-          // would train people to stop reading this screen at all. A
-          // running calibration takes the slot outright rather than
-          // competing through `allInsightRules`: `Insight` has no visual
-          // room for a trend sparkline, and the engine has no forced-
-          // priority concept beyond rule order (which the Weight tab's own
-          // insight filter already depends on) — so this is special-cased
-          // here instead of bent into the generic model.
-          if (app.data.calibration?['status'] == 'running')
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: CalibrationStatusCard(app: app, controller: controller),
-            )
-          else
-            for (final insight in InsightsEngine.active(app.data, today, limit: 1))
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: InsightCard(
-                  insight: insight,
-                  onAction: insightAction(context, insight, app, controller, goTab: go),
-                  onDismiss: () {
-                    if (controller.current.user == null) return;
-                    controller.patchSettings('insightsDismissed', InsightsEngine.withDismissed(app.data, insight.id));
-                  },
-                ),
-              ),
-          // No HealthKit/Health Connect equivalent exists in a browser —
-          // Health Sync is a mobile-only feature, so the banner is simply
-          // absent on web rather than showing a permanently-failing state.
-          if (!kIsWeb)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: HealthSyncBanner(app: app, controller: controller),
-            ),
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: _buildWorkoutHeroCard(
-                    todayDay: todayDay,
-                    exercises: exercises,
-                    loggedToday: loggedToday,
-                    sessionsThisWeek: last7,
-                    steps: (act['steps'] ?? 0) as num,
-                    stepGoal: stepGoal,
-                    onTap: todayDay != null ? () => go('train', todayDay) : () => RestDayScreen.push(context),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: HeroCard(
-                    tone: HeroTone.lav,
-                    onTap: () => go('food'),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            Text('NUTRITION', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
-                            SizedBox(height: 6),
-                            Text('Hit Your Daily Protein Goal', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20, height: 1.18)),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        AiShimmerOnce(
-                          borderRadius: BorderRadius.circular(T.pill),
-                          child: ActionPill(
-                            label: 'Log food',
-                            icon: const Icon(Icons.add, size: 17, color: Colors.white),
-                            onTap: () => showAppSheet(context, LogFoodSheet(app: app, controller: controller)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+            child: InsightCard(
+              insight: insight,
+              onAction: insightAction(context, insight, app, controller, goTab: go),
+              onDismiss: () {
+                if (controller.current.user == null) return;
+                controller.patchSettings('insightsDismissed', InsightsEngine.withDismissed(app.data, insight.id));
+              },
             ),
           ),
-          const SizedBox(height: 12),
-          _buildStatsCard(
-            goalType: goalType,
-            balance: balance,
-            tdee: tdee,
-            burnedToday: burnedToday,
-            kcalToday: kcalToday,
-            adjustedCalGoal: adjustedCalGoal,
-            protToday: protToday,
-            protGoal: protGoal,
-          ),
-          const SizedBox(height: 12),
-          PaperCard(
-            onTap: () => go('train'),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(children: [
-                  const IconBubble(icon: Icon(Icons.fitness_center, size: 20, color: Colors.white), size: 48, background: T.hero),
-                  const SizedBox(width: 12),
-                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(todayDay ?? 'Recovery', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                    Padding(padding: const EdgeInsets.only(top: 2), child: Text('$last7 of 5 sessions this week', style: const TextStyle(fontSize: 12.5, color: T.paperMuted))),
-                  ]),
-                ]),
-                Ring(value: last7.toDouble(), goal: 5, size: 72, onPaper: true, color: T.hero),
-              ],
+      // No HealthKit/Health Connect equivalent exists in a browser —
+      // Health Sync is a mobile-only feature, so the banner is simply
+      // absent on web rather than showing a permanently-failing state.
+      if (!kIsWeb)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: HealthSyncBanner(app: app, controller: controller),
+        ),
+    ];
+
+    final heroRow = IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: _buildWorkoutHeroCard(
+              todayDay: todayDay,
+              exercises: exercises,
+              loggedToday: loggedToday,
+              sessionsThisWeek: last7,
+              steps: (act['steps'] ?? 0) as num,
+              stepGoal: stepGoal,
+              onTap: todayDay != null ? () => go('train', todayDay) : () => RestDayScreen.push(context),
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: AppCard(
-                  onTap: () => go('progress'),
-                  child: Column(
+          const SizedBox(width: 12),
+          Expanded(
+            child: HeroCard(
+              tone: HeroTone.lav,
+              onTap: () => go('food'),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Eyebrow('Body weight'),
-                      if (cur != null) ...[
-                        Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                          Text('$cur', style: mono(fontSize: 26, fontWeight: FontWeight.w600)),
-                          Text(' ${st['units'] ?? 'kg'}', style: mono(fontSize: 13, color: T.muted)),
-                        ]),
-                        if (tgt != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(
-                              '${(cur - tgt).abs().toStringAsFixed(1)} to $tgt${daysLeft != null ? " · ${daysLeft}d left" : ""}',
-                              style: TextStyle(fontSize: 12, color: T.muted),
-                            ),
-                          ),
-                      ] else
-                        Padding(padding: EdgeInsets.only(top: 8), child: Text('Log a weigh-in', style: TextStyle(color: T.muted, fontSize: 13))),
+                    children: const [
+                      Text('NUTRITION', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+                      SizedBox(height: 6),
+                      Text('Hit Your Daily Protein Goal', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20, height: 1.18)),
                     ],
                   ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: AppCard(
-                  onTap: openPlan,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Eyebrow('Your plan'),
-                      Row(children: [
-                        const Icon(Icons.auto_awesome, size: 18, color: T.hero),
-                        const SizedBox(width: 8),
-                        Text(goalLabel(st['goalType'] as String?, fallback: 'Coach'), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                      ]),
-                      Padding(padding: EdgeInsets.only(top: 6), child: Text('Tap for diet & training', style: TextStyle(fontSize: 12, color: T.muted))),
-                    ],
+                  const SizedBox(height: 10),
+                  AiShimmerOnce(
+                    borderRadius: BorderRadius.circular(T.pill),
+                    child: ActionPill(
+                      label: 'Log food',
+                      icon: const Icon(Icons.add, size: 17, color: Colors.white),
+                      onTap: () => showAppSheet(context, LogFoodSheet(app: app, controller: controller)),
+                    ),
                   ),
-                ),
-              ),
-            ],
-          ),
-          if (showMuscleCard(app.data)) ...[
-            const SizedBox(height: 12),
-            MuscleDashboardCard(app: app, controller: controller),
-          ],
-          const SizedBox(height: 12),
-          AppCard(
-            onTap: openActivity,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Eyebrow('Today\'s activity', margin: EdgeInsets.zero),
-                    Row(children: const [
-                      Icon(Icons.add, size: 14, color: T.hero),
-                      SizedBox(width: 4),
-                      Text('log', style: TextStyle(color: T.hero, fontSize: 12, fontWeight: FontWeight.w600)),
-                    ]),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                            const Icon(Icons.directions_walk, size: 16, color: T.hero),
-                            const SizedBox(width: 6),
-                            Text('${(act['steps'] ?? 0)}', style: mono(fontSize: 22, fontWeight: FontWeight.w600)),
-                          ]),
-                          Padding(
-                            padding: const EdgeInsets.only(top: 7),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(3),
-                              child: TweenAnimationBuilder<double>(
-                                tween: Tween(begin: 0, end: (((act['steps'] ?? 0) as num) / stepGoal).clamp(0, 1).toDouble()),
-                                duration: const Duration(milliseconds: 750),
-                                curve: Curves.easeOutCubic,
-                                builder: (context, v, _) => LinearProgressIndicator(
-                                  value: v,
-                                  minHeight: 5,
-                                  backgroundColor: T.surface2,
-                                  valueColor: AlwaysStoppedAnimation(((act['steps'] ?? 0) as num) >= stepGoal ? T.success : T.hero),
-                                ),
-                              ),
-                            ),
-                          ),
-                          Padding(padding: EdgeInsets.only(top: 5), child: Text('steps · goal ${stepGoal.round()}', style: TextStyle(fontSize: 11, color: T.muted))),
-                        ],
-                      ),
-                    ),
-                    Container(width: 1, height: 50, color: T.line, margin: const EdgeInsets.symmetric(horizontal: 16)),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                            const Icon(Icons.local_fire_department, size: 16, color: T.hero),
-                            const SizedBox(width: 6),
-                            Text('${(act['kcal'] ?? 0)}', style: mono(fontSize: 22, fontWeight: FontWeight.w600)),
-                            const SizedBox(width: 4),
-                            Text('kcal', style: mono(fontSize: 12, color: T.muted)),
-                          ]),
-                          Padding(padding: EdgeInsets.only(top: 14), child: Text('cardio · ${(act['min'] ?? 0)} min', style: TextStyle(fontSize: 11, color: T.muted))),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Center(
-              child: Text(
-                'Hit ${protGoal.round()}g protein, keep lifts heavy, sleep 7+ hrs.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: T.faint, fontSize: 12, height: 1.6),
+                ],
               ),
             ),
           ),
         ],
       ),
     );
+    final stats = _buildStatsCard(
+      goalType: goalType,
+      balance: balance,
+      tdee: tdee,
+      burnedToday: burnedToday,
+      kcalToday: kcalToday,
+      adjustedCalGoal: adjustedCalGoal,
+      protToday: protToday,
+      protGoal: protGoal,
+    );
+    final trainCard = PaperCard(
+      onTap: () => go('train'),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(children: [
+            const IconBubble(icon: Icon(Icons.fitness_center, size: 20, color: Colors.white), size: 48, background: T.hero),
+            const SizedBox(width: 12),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(todayDay ?? 'Recovery', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+              Padding(padding: const EdgeInsets.only(top: 2), child: Text('$last7 of 5 sessions this week', style: const TextStyle(fontSize: 12.5, color: T.paperMuted))),
+            ]),
+          ]),
+          Ring(value: last7.toDouble(), goal: 5, size: 72, onPaper: true, color: T.hero),
+        ],
+      ),
+    );
+    final weightPlan = Row(
+      children: [
+        Expanded(
+          child: AppCard(
+            onTap: () => go('progress'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Eyebrow('Body weight'),
+                if (cur != null) ...[
+                  Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+                    Text('$cur', style: mono(fontSize: 26, fontWeight: FontWeight.w600)),
+                    Text(' ${st['units'] ?? 'kg'}', style: mono(fontSize: 13, color: T.muted)),
+                  ]),
+                  if (tgt != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        '${(cur - tgt).abs().toStringAsFixed(1)} to $tgt${daysLeft != null ? " · ${daysLeft}d left" : ""}',
+                        style: TextStyle(fontSize: 12, color: T.muted),
+                      ),
+                    ),
+                ] else
+                  Padding(padding: EdgeInsets.only(top: 8), child: Text('Log a weigh-in', style: TextStyle(color: T.muted, fontSize: 13))),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: AppCard(
+            onTap: openPlan,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Eyebrow('Your plan'),
+                Row(children: [
+                  const Icon(Icons.auto_awesome, size: 18, color: T.hero),
+                  const SizedBox(width: 8),
+                  Text(goalLabel(st['goalType'] as String?, fallback: 'Coach'), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                ]),
+                Padding(padding: EdgeInsets.only(top: 6), child: Text('Tap for diet & training', style: TextStyle(fontSize: 12, color: T.muted))),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+    final muscleCard = showMuscleCard(app.data) ? MuscleDashboardCard(app: app, controller: controller) : null;
+    final activityCard = AppCard(
+      onTap: openActivity,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Eyebrow('Today\'s activity', margin: EdgeInsets.zero),
+              Row(children: const [
+                Icon(Icons.add, size: 14, color: T.hero),
+                SizedBox(width: 4),
+                Text('log', style: TextStyle(color: T.hero, fontSize: 12, fontWeight: FontWeight.w600)),
+              ]),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+                      const Icon(Icons.directions_walk, size: 16, color: T.hero),
+                      const SizedBox(width: 6),
+                      Text('${(act['steps'] ?? 0)}', style: mono(fontSize: 22, fontWeight: FontWeight.w600)),
+                    ]),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 7),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(3),
+                        child: TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0, end: (((act['steps'] ?? 0) as num) / stepGoal).clamp(0, 1).toDouble()),
+                          duration: const Duration(milliseconds: 750),
+                          curve: Curves.easeOutCubic,
+                          builder: (context, v, _) => LinearProgressIndicator(
+                            value: v,
+                            minHeight: 5,
+                            backgroundColor: T.surface2,
+                            valueColor: AlwaysStoppedAnimation(((act['steps'] ?? 0) as num) >= stepGoal ? T.success : T.hero),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Padding(padding: EdgeInsets.only(top: 5), child: Text('steps · goal ${stepGoal.round()}', style: TextStyle(fontSize: 11, color: T.muted))),
+                  ],
+                ),
+              ),
+              Container(width: 1, height: 50, color: T.line, margin: const EdgeInsets.symmetric(horizontal: 16)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+                      const Icon(Icons.local_fire_department, size: 16, color: T.hero),
+                      const SizedBox(width: 6),
+                      Text('${(act['kcal'] ?? 0)}', style: mono(fontSize: 22, fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 4),
+                      Text('kcal', style: mono(fontSize: 12, color: T.muted)),
+                    ]),
+                    Padding(padding: EdgeInsets.only(top: 14), child: Text('cardio · ${(act['min'] ?? 0)} min', style: TextStyle(fontSize: 11, color: T.muted))),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    final footer = Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Center(
+        child: Text(
+          'Hit ${protGoal.round()}g protein, keep lifts heavy, sleep 7+ hrs.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: T.faint, fontSize: 12, height: 1.6),
+        ),
+      ),
+    );
+
+    // Phone keeps the original single column. From ~720px of content width
+    // (tablet and desktop) the same cards split into two columns, so the
+    // dashboard reads as a composed page instead of phone cards stretched wide.
+    return LayoutBuilder(builder: (context, c) {
+      final wide = c.maxWidth >= 720;
+      const gap = 12.0;
+      Widget spaced(List<Widget> items) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < items.length; i++) ...[if (i > 0) const SizedBox(height: gap), items[i]],
+            ],
+          );
+      final pad = wide ? const EdgeInsets.fromLTRB(24, 10, 24, 24) : const EdgeInsets.fromLTRB(16, 10, 16, 16);
+      return SingleChildScrollView(
+        padding: pad,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ...head,
+            if (wide)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: c.maxWidth >= 960 ? 3 : 1, child: spaced([heroRow, stats, activityCard])),
+                  const SizedBox(width: gap + 4),
+                  Expanded(flex: c.maxWidth >= 960 ? 2 : 1, child: spaced([trainCard, weightPlan, if (muscleCard != null) muscleCard])),
+                ],
+              )
+            else
+              spaced([heroRow, stats, trainCard, weightPlan, if (muscleCard != null) muscleCard, activityCard]),
+            footer,
+          ],
+        ),
+      );
+    });
   }
 
   /// The ring/stats card just under the hero row — its content depends on

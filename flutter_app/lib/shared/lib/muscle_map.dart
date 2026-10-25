@@ -93,9 +93,11 @@ class MuscleMap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(size, size * 1.45),
-      painter: _MuscleMapPainter(view: view, primary: primary, secondary: secondary),
+    return RepaintBoundary(
+      child: CustomPaint(
+        size: Size(size, size * 1.45),
+        painter: _MuscleMapPainter(view: view, primary: primary, secondary: secondary),
+      ),
     );
   }
 }

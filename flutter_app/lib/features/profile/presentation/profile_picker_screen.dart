@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../shared/theme.dart';
 import '../../../shared/widgets/atoms.dart';
 import '../../../app/app_state.dart';
+import '../../../shared/responsive.dart';
 
 class ProfilePickerScreen extends StatelessWidget {
   final List<SimpleUser> users;
@@ -14,7 +15,9 @@ class ProfilePickerScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: T.bg,
       body: SafeArea(
-        child: Padding(
+        child: ContentColumn(
+          maxWidth: 520,
+          child: Padding(
           padding: const EdgeInsets.fromLTRB(18, 40, 18, 40),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -70,6 +73,7 @@ class ProfilePickerScreen extends StatelessWidget {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

@@ -25,7 +25,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       children: [
             SizedBox(height: 8),
-        TextField(
+        Align(
+          alignment: Alignment.centerLeft,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: TextField(
           onChanged: (v) => setState(() => q = v),
           style: TextStyle(color: T.text, fontSize: 15),
           decoration: InputDecoration(
@@ -37,6 +41,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(T.pill), borderSide: BorderSide(color: T.line)),
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(T.pill), borderSide: BorderSide(color: T.line)),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(T.pill), borderSide: const BorderSide(color: T.accent)),
+          ),
+        ),
           ),
         ),
         const SizedBox(height: 16),
@@ -71,13 +77,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   ),
                 ),
                 if (isOpen)
-                  GridView.count(
-                    crossAxisCount: 2,
+                  // Cards stay ~170-190px wide and the column count follows the
+                  // available width (2 on a phone, 5-6 on a desktop).
+                  GridView(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 0.82,
+                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 190,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      mainAxisExtent: 212,
+                    ),
                     children: list.map((n) {
                       final info = lib[n]!;
                       return AppCard(

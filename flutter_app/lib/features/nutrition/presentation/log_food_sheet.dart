@@ -11,6 +11,7 @@ import 'widgets/confirm_save_sheet.dart';
 import 'widgets/quick_add_sheet.dart';
 import 'widgets/custom_add_sheet.dart';
 import 'widgets/browse_foods_sheet.dart';
+import '../../../shared/responsive.dart';
 
 /// The single entry point for logging food (today), meant to be opened from
 /// anywhere the app offers a "log food" action — the Nutrition screen's own
@@ -137,7 +138,7 @@ class _LogFoodSheetState extends State<LogFoodSheet> {
             onTap: () {
               final nav = Navigator.of(context);
               nav.pop();
-              nav.push(MaterialPageRoute(builder: (_) => AskAiChatScreen(app: widget.app, controller: widget.controller)));
+              pushPanelOrPage(nav.context, (_) => AskAiChatScreen(app: widget.app, controller: widget.controller));
             },
             child: AiGradient(
               builder: (context, gradient) => Container(

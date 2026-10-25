@@ -25,10 +25,10 @@ class AnimatedIndexedStack extends StatelessWidget {
                 opacity: i == index ? 1 : 0,
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOut,
-                child: AnimatedScale(
-                  scale: i == index ? 1 : 0.98,
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOut,
+                // No scale animation: scaling a whole tab re-rasterises it every
+                // frame, which is what made tab switches stutter on web. The
+                // boundary keeps each tab's paint isolated from its siblings.
+                child: RepaintBoundary(
                   child: TickerMode(enabled: i == index, child: children[i]),
                 ),
               ),

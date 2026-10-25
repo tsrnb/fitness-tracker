@@ -3,6 +3,7 @@ import '../../../shared/theme.dart';
 import '../../../shared/widgets/atoms.dart';
 import '../../../app/app_state.dart';
 import 'calibration_mode_screen.dart';
+import '../../../shared/responsive.dart';
 
 /// Explains the calibration loop before asking for anything — mockup
 /// screen 04. Pure copy/explanation; the actual mode choice and baseline
@@ -72,7 +73,7 @@ class CalibrationIntroScreen extends StatelessWidget {
           ),
           const SizedBox(height: 22),
           PrimaryButton(
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CalibrationModeScreen(app: app, controller: controller))),
+            onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => CalibrationModeScreen(app: app, controller: controller))),
             child: const Text('Start Calibration'),
           ),
         ],

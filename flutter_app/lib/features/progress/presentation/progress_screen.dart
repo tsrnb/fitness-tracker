@@ -19,6 +19,7 @@ import '../../muscle/presentation/widgets/muscle_bits.dart' show signed;
 import 'activity_progress_screen.dart';
 import 'daily_log_section.dart';
 import 'next_kg_screen.dart';
+import '../../../shared/responsive.dart';
 
 class ProgressScreen extends StatefulWidget {
   final AppState app;
@@ -66,22 +67,36 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
     final prs = computePersonalRecords(history);
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      children: [
-            SizedBox(height: 8),
-        PillTabs(
-          options: const [MapEntry('weight', 'Weight'), MapEntry('strength', 'Strength'), MapEntry('nutrition', 'Nutrition'), MapEntry('activity', 'Activity')],
-          value: tab,
-          onChange: (v) => setState(() => tab = v),
-          scroll: true,
-        ),
-        if (tab == 'weight') ..._weightTab(weightData, st),
-        if (tab == 'strength') ..._strengthTab(strengthData, prs, history),
-        if (tab == 'nutrition') ..._nutritionTab(widget.app.data.diet, st),
-        if (tab == 'activity') ActivityProgressScreen(app: widget.app, openActivity: widget.openActivity),
-      ],
-    );
+    final tabContent = switch (tab) {
+      'weight' => _weightTab(weightData, st),
+      'strength' => _strengthTab(strengthData, prs, history),
+      'nutrition' => _nutritionTab(widget.app.data.diet, st),
+      _ => null,
+    };
+
+    return LayoutBuilder(builder: (context, c) {
+      final wide = c.maxWidth >= Responsive.wideContent;
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        children: [
+          const SizedBox(height: 8),
+          PillTabs(
+            options: const [MapEntry('weight', 'Weight'), MapEntry('strength', 'Strength'), MapEntry('nutrition', 'Nutrition'), MapEntry('activity', 'Activity')],
+            value: tab,
+            onChange: (v) => setState(() => tab = v),
+            scroll: true,
+          ),
+          if (tabContent == null)
+            ActivityProgressScreen(app: widget.app, openActivity: widget.openActivity)
+          else if (wide && tabContent.length > 1)
+            // Everything but the chart/analysis card on the left, that last
+            // card on the right.
+            TwoPane(left: tabContent.sublist(0, tabContent.length - 1), right: [tabContent.last])
+          else
+            ...tabContent,
+        ],
+      );
+    });
   }
 
   List<Widget> _weightTab(List<Map<String, dynamic>> weightData, Map<String, dynamic> st) {
@@ -200,7 +215,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
     final tdee = (data.plan?['tdee'] as num?) ?? (data.settings['calorieGoal'] as num?) ?? 2000;
     final progress = computeKgProgress(diet: data.diet, activity: data.activity, tdee: tdee);
     return AppCard(
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NextKgScreen(app: widget.app, controller: widget.controller))),
+      onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => NextKgScreen(app: widget.app, controller: widget.controller))),
       child: Row(children: [
         SizedBox(
           width: 40,

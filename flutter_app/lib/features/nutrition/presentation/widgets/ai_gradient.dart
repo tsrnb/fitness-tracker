@@ -48,7 +48,7 @@ class _AiGradientState extends State<AiGradient> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _c,
-      builder: (context, _) => widget.builder(
+      builder: (context, _) => RepaintBoundary(child: widget.builder(
         context,
         LinearGradient(
           begin: Alignment.topLeft,
@@ -57,7 +57,7 @@ class _AiGradientState extends State<AiGradient> with SingleTickerProviderStateM
           tileMode: TileMode.mirror,
           transform: _SlidingGradientTransform(_c.value),
         ),
-      ),
+      )),
     );
   }
 }

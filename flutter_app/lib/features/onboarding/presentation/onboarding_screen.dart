@@ -7,6 +7,7 @@ import '../../plan/data/plan_generator.dart';
 import '../../plan/data/plan_options.dart';
 import '../../training/data/training_splits_data.dart';
 import '../../training/data/split_effectiveness.dart';
+import '../../../shared/responsive.dart';
 
 typedef OnboardingComplete = void Function(Map<String, dynamic> profile, Plan plan);
 
@@ -127,7 +128,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return Scaffold(
       backgroundColor: T.bg,
       body: SafeArea(
-        child: Padding(
+        child: ContentColumn(
+          maxWidth: 520,
+          child: Padding(
           padding: const EdgeInsets.fromLTRB(18, 20, 18, 40),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -184,6 +187,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

@@ -8,6 +8,7 @@ import '../domain/calibration_ai.dart';
 import '../domain/calibration_digest.dart';
 import '../domain/calibration_engine.dart';
 import 'calibration_dashboard_screen.dart';
+import '../../../shared/responsive.dart';
 
 /// Mockup screen 05 — Observe vs. Controlled, plus a live preview of the
 /// baseline that gets frozen into `calibration.baseline` the moment
@@ -79,7 +80,7 @@ class _CalibrationModeScreenState extends State<CalibrationModeScreen> {
     // snapshot frozen before the write just above, so its `data.calibration`
     // would still read back null on Dashboard's very first build (see the
     // long comment on `_CalibrationDashboardScreenState._app`).
-    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => CalibrationDashboardScreen(app: widget.controller.current, controller: widget.controller)));
+    Navigator.of(context).pushReplacement(AppRoute(builder: (_) => CalibrationDashboardScreen(app: widget.controller.current, controller: widget.controller)));
   }
 
   @override

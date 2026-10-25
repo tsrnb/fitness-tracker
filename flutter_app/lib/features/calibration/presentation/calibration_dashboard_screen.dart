@@ -12,6 +12,7 @@ import '../domain/calibration_engine.dart';
 import 'calibration_ask_ai_screen.dart';
 import 'calibration_mode_screen.dart';
 import 'widgets/calibration_chat_sheet.dart';
+import '../../../shared/responsive.dart';
 
 /// Mockup screens 06 (running) and 07 (results) in one place — which of the
 /// two renders depends purely on `calibration['status']`/`endDate`, not on
@@ -242,9 +243,7 @@ class _RunningView extends StatelessWidget {
         if (progress.day >= 3) ...[
           const SizedBox(height: 12),
           GestureDetector(
-            onTap: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => CalibrationAskAiScreen(app: app, controller: controller)))
-                .then((_) => onChanged()),
+            onTap: () => pushPanelOrPage<void>(context, (_) => CalibrationAskAiScreen(app: app, controller: controller)).then((_) => onChanged()),
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(border: Border.all(color: T.lav.withValues(alpha: 0.4)), borderRadius: BorderRadius.circular(T.rM)),
@@ -797,7 +796,7 @@ class _ResultsViewState extends State<_ResultsView> {
   Future<void> _startFresh(String presetMode) async {
     await widget.controller.update('calibration', (_) => null);
     if (!mounted) return;
-    Navigator.of(context).pushReplacement(MaterialPageRoute(
+    Navigator.of(context).pushReplacement(AppRoute(
       builder: (_) => CalibrationModeScreen(
         app: widget.controller.current,
         controller: widget.controller,

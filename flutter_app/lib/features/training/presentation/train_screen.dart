@@ -9,6 +9,7 @@ import '../../exercises/presentation/exercise_detail_screen.dart';
 import '../domain/training_split.dart';
 import '../data/training_splits_data.dart';
 import '../data/exercise_swaps.dart';
+import '../../../shared/responsive.dart';
 
 class TrainScreen extends StatefulWidget {
   final AppState app;
@@ -101,6 +102,8 @@ class _TrainScreenState extends State<TrainScreen> {
     final doneCount = items
         .where((it) => _savedToday(it.name) || skipped.contains(it.name))
         .length;
+    return LayoutBuilder(builder: (context, c) {
+    final wide = c.maxWidth >= Responsive.wideContent;
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       children: [
@@ -167,7 +170,7 @@ class _TrainScreenState extends State<TrainScreen> {
           ),
         ),
         const SizedBox(height: 14),
-        ...items.asMap().entries.map((entry) {
+        ...splitColumns(wide, c.maxWidth - 32, items.asMap().entries.map((entry) {
           final slotItem = originalItems[entry.key];
           final it = entry.value;
           final isSwapped = it.name != slotItem.name;
@@ -312,8 +315,9 @@ class _TrainScreenState extends State<TrainScreen> {
               ),
             ),
           );
-        }),
+        }).toList()),
       ],
     );
+    });
   }
 }

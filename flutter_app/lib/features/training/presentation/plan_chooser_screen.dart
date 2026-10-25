@@ -10,6 +10,7 @@ import '../data/training_splits_data.dart';
 import '../data/split_effectiveness.dart';
 import '../data/custom_plan.dart';
 import 'custom_plan_editor_screen.dart';
+import '../../../shared/responsive.dart';
 
 /// Full-page "Training plan" chooser (Settings → Training plan). Splits are
 /// ranked by an effectiveness score for whichever goal is selected up top —
@@ -177,7 +178,7 @@ class _TrainingPlanChooserScreenState extends State<TrainingPlanChooserScreen> {
   }
 
   Future<void> _openCustomEditor() async {
-    final saved = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(
+    final saved = await Navigator.of(context).push<Map<String, dynamic>>(AppRoute(
       builder: (_) => CustomPlanEditorScreen(app: widget.app, controller: widget.controller),
     ));
     if (!mounted || saved == null) return;

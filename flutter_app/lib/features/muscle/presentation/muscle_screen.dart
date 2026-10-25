@@ -14,6 +14,7 @@ import 'widgets/gain_chart.dart';
 import 'widgets/know_why_button.dart';
 import 'widgets/log_muscle_sheet.dart';
 import 'widgets/muscle_bits.dart';
+import '../../../shared/responsive.dart';
 
 /// Opens the Muscle screen from anywhere (the Dashboard card). Someone who
 /// has never set it up goes straight into the setup flow first.
@@ -23,7 +24,7 @@ Future<void> openMuscle(BuildContext context, AppState app, AppController contro
     if (!done || !context.mounted) return;
   }
   if (!context.mounted) return;
-  await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MuscleScreen()));
+  await Navigator.of(context).push(AppRoute(builder: (_) => const MuscleScreen()));
 }
 
 /// Full-page wrapper around [MuscleTab], watching live state because a
@@ -483,7 +484,7 @@ class _MuscleTabState extends State<MuscleTab> {
     final c = d > 0 ? T.success : (d < 0 ? T.danger : T.muted);
     final pr = l.isPr && daysBetween(l.last.date, _today) <= 10;
     return GestureDetector(
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => LiftDetailScreen(app: widget.app, controller: widget.controller, name: l.name))),
+      onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => LiftDetailScreen(app: widget.app, controller: widget.controller, name: l.name))),
       behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 13),

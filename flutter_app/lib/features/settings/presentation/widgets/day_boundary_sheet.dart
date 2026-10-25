@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../shared/theme.dart';
 import '../../../../shared/widgets/atoms.dart';
 import '../day_start_applied_screen.dart';
+import '../../../../shared/responsive.dart';
 
 String formatDayStart(int minutes) {
   final h24 = (minutes ~/ 60) % 24;
@@ -20,11 +21,7 @@ String formatDayStart(int minutes) {
 /// undersells that reach.
 void showDayBoundarySheet(BuildContext context, {required int initialMinutes, required ValueChanged<int> onApplied}) {
   int minutes = initialMinutes;
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: T.surface,
-    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(T.rXL))),
-    builder: (ctx) {
+  Widget sheetBuilder(BuildContext ctx) {
       return StatefulBuilder(builder: (ctx, setSheetState) {
         final h24 = (minutes ~/ 60) % 24;
         final m = minutes % 60;
@@ -180,6 +177,16 @@ void showDayBoundarySheet(BuildContext context, {required int initialMinutes, re
           ),
         );
       });
-    },
-  );
+  }
+
+  if (useSidePanel(context)) {
+    showSidePanel(context, width: 460, builder: (ctx) => SafeArea(child: SingleChildScrollView(child: sheetBuilder(ctx))));
+  } else {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: T.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(T.rXL))),
+      builder: sheetBuilder,
+    );
+  }
 }

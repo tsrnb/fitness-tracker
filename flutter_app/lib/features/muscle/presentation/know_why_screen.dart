@@ -11,6 +11,7 @@ import '../data/muscle_store.dart';
 import '../domain/muscle_models.dart';
 import '../domain/muscle_stats.dart';
 import 'widgets/muscle_bits.dart';
+import '../../../shared/responsive.dart';
 
 /// "Know why": a conversation with the person's own muscle data in context.
 /// Opened from the Muscle screen, a lift, or the Dashboard card; every
@@ -21,7 +22,7 @@ class KnowWhyScreen extends ConsumerStatefulWidget {
   const KnowWhyScreen({super.key, this.focusLift});
 
   static Future<void> open(BuildContext context, {String? focusLift}) =>
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => KnowWhyScreen(focusLift: focusLift)));
+      pushPanelOrPage<void>(context, (_) => KnowWhyScreen(focusLift: focusLift));
 
   @override
   ConsumerState<KnowWhyScreen> createState() => _KnowWhyScreenState();

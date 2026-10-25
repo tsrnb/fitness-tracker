@@ -80,12 +80,26 @@ class T {
 
 const monoFont = 'JetBrains Mono';
 
+// GoogleFonts.*() does a font lookup on every call, and mono()/Type.* are
+// called hundreds of times per frame, so each distinct style is built once.
+final _styleCache = <Object, TextStyle>{};
+
 TextStyle mono({double fontSize = 14, FontWeight? fontWeight, Color? color}) {
-  return GoogleFonts.jetBrainsMono(
-    fontFeatures: const [FontFeature.tabularFigures()],
-    fontSize: fontSize,
-    fontWeight: fontWeight,
-    color: color,
+  return _styleCache.putIfAbsent(
+    ('mono', fontSize, fontWeight, color),
+    () => GoogleFonts.jetBrainsMono(
+      fontFeatures: const [FontFeature.tabularFigures()],
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color,
+    ),
+  );
+}
+
+TextStyle _manrope(String key, double size, FontWeight weight, double letterSpacing, double height, Color color) {
+  return _styleCache.putIfAbsent(
+    (key, color),
+    () => GoogleFonts.manrope(fontSize: size, fontWeight: weight, letterSpacing: letterSpacing, height: height, color: color),
   );
 }
 
@@ -97,22 +111,22 @@ TextStyle mono({double fontSize = 14, FontWeight? fontWeight, Color? color}) {
 /// type from "default" type at the same sizes.
 class Type {
   /// Big hero numbers (e.g. onboarding summary calorie figure).
-  static TextStyle get display => GoogleFonts.manrope(fontSize: 34, fontWeight: FontWeight.w800, letterSpacing: -0.6, height: 1.05, color: T.text);
+  static TextStyle get display => _manrope('display', 34, FontWeight.w800, -0.6, 1.05, T.text);
 
   /// Screen/section titles (onboarding step titles, Settings page titles).
-  static TextStyle get h1 => GoogleFonts.manrope(fontSize: 25, fontWeight: FontWeight.w700, letterSpacing: -0.4, height: 1.15, color: T.text);
+  static TextStyle get h1 => _manrope('h1', 25, FontWeight.w700, -0.4, 1.15, T.text);
 
   /// Card/subsection headers.
-  static TextStyle get h2 => GoogleFonts.manrope(fontSize: 19, fontWeight: FontWeight.w700, letterSpacing: -0.2, height: 1.2, color: T.text);
+  static TextStyle get h2 => _manrope('h2', 19, FontWeight.w700, -0.2, 1.2, T.text);
 
   /// In-card emphasis (row titles, list item names).
-  static TextStyle get h3 => GoogleFonts.manrope(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: -0.1, height: 1.3, color: T.text);
+  static TextStyle get h3 => _manrope('h3', 15, FontWeight.w700, -0.1, 1.3, T.text);
 
   /// Default paragraph/body copy.
-  static TextStyle get body => GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w500, height: 1.45, color: T.text);
+  static TextStyle get body => _manrope('body', 14, FontWeight.w500, 0, 1.45, T.text);
 
   /// Secondary/supporting copy under a title.
-  static TextStyle get caption => GoogleFonts.manrope(fontSize: 12.5, fontWeight: FontWeight.w500, height: 1.4, color: T.muted);
+  static TextStyle get caption => _manrope('caption', 12.5, FontWeight.w500, 0, 1.4, T.muted);
 
   /// A serif display voice, used deliberately in one place — the 14-Day
   /// Calibration's end-of-window finding, where the AI's read *is* the

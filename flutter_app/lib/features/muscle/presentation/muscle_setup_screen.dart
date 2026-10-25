@@ -6,6 +6,7 @@ import '../../../shared/lib/helpers.dart';
 import '../../../app/app_state.dart';
 import '../data/muscle_store.dart';
 import '../domain/muscle_models.dart';
+import '../../../shared/responsive.dart';
 
 /// First-run setup for the Muscle feature (and "Edit" afterwards). Collects
 /// only what the app cannot know: training experience. Lifts come from the
@@ -17,7 +18,7 @@ class MuscleSetupScreen extends StatefulWidget {
   const MuscleSetupScreen({super.key, required this.app, required this.controller});
 
   static Future<bool> open(BuildContext context, AppState app, AppController controller) async {
-    final ok = await Navigator.of(context).push<bool>(MaterialPageRoute(fullscreenDialog: true, builder: (_) => MuscleSetupScreen(app: app, controller: controller)));
+    final ok = await Navigator.of(context).push<bool>(AppRoute(fullscreenDialog: true, builder: (_) => MuscleSetupScreen(app: app, controller: controller)));
     return ok == true;
   }
 

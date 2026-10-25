@@ -5,6 +5,7 @@ import '../../progress/presentation/next_kg_screen.dart';
 import '../../progress/presentation/widgets/weigh_in_sheet.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../domain/insight.dart';
+import '../../../shared/responsive.dart';
 
 /// Maps an insight's id (each id is prefixed by its rule name, see
 /// `insight_rules.dart`) to what tapping its action button actually does —
@@ -24,10 +25,10 @@ VoidCallback? insightAction(
     return () => showAppSheet(context, WeighInSheet(app: app, controller: controller));
   }
   if (insight.id.startsWith('plateau:')) {
-    return () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NextKgScreen(app: app, controller: controller)));
+    return () => Navigator.of(context).push(AppRoute(builder: (_) => NextKgScreen(app: app, controller: controller)));
   }
   if (insight.id.startsWith('sustained-deficit:')) {
-    return () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SettingsScreen(app: app, controller: controller)));
+    return () => Navigator.of(context).push(AppRoute(builder: (_) => SettingsScreen(app: app, controller: controller)));
   }
   return null;
 }

@@ -7,6 +7,7 @@ import '../../../nutrition/presentation/widgets/ai_gradient.dart' show aiColor1;
 import '../../../progress/presentation/widgets/weigh_in_sheet.dart';
 import '../../domain/calibration_engine.dart';
 import '../calibration_dashboard_screen.dart';
+import '../../../../shared/responsive.dart';
 
 /// Takes over the Home dashboard's one insight slot while a calibration is
 /// running (mockup "variant B") — special-cased at the `DashboardScreen`
@@ -39,7 +40,7 @@ class CalibrationStatusCard extends StatelessWidget {
           };
 
     return GestureDetector(
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CalibrationDashboardScreen(app: app, controller: controller))),
+      onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => CalibrationDashboardScreen(app: app, controller: controller))),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(T.rL),
         child: DecoratedBox(

@@ -5,6 +5,7 @@ import '../../../shared/widgets/atoms.dart';
 import '../../exercises/data/exercise_library_data.dart';
 import '../../exercises/presentation/library_screen.dart';
 import '../data/custom_plan.dart';
+import '../../../shared/responsive.dart';
 
 const _repPresets = ['5', '6-8', '8-10', '10-12', '12-15', '15-20'];
 const _weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -76,7 +77,7 @@ class _CustomPlanEditorScreenState extends State<CustomPlanEditorScreen> {
   }
 
   Future<void> _addExercise() async {
-    final picked = await Navigator.of(context).push<String>(MaterialPageRoute(
+    final picked = await Navigator.of(context).push<String>(AppRoute(
       builder: (ctx) => Scaffold(
         backgroundColor: T.bg,
         appBar: AppBar(

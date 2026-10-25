@@ -10,6 +10,7 @@ import '../../calibration/domain/calibration_engine.dart';
 import '../../calibration/presentation/calibration_intro_screen.dart';
 import '../../calibration/presentation/calibration_dashboard_screen.dart';
 import 'widgets/kg_day_detail_sheet.dart';
+import '../../../shared/responsive.dart';
 
 /// "76.4" without a pointless trailing ".0" when the weight happens to
 /// round to a whole number.
@@ -908,7 +909,7 @@ class _CalibrationEntryCard extends StatelessWidget {
         body:
             "A 14-day calibration compares what your plan predicts against what actually happens — so we can tell logging noise from water weight from an estimate that's just off.",
         cta: 'Start 14-Day Calibration',
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CalibrationIntroScreen(app: freshApp, controller: controller))).then((_) => onReturn()),
+        onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => CalibrationIntroScreen(app: freshApp, controller: controller))).then((_) => onReturn()),
       );
     }
 
@@ -922,7 +923,7 @@ class _CalibrationEntryCard extends StatelessWidget {
         title: 'Calibration running — Day $day/$total',
         body: 'Keep logging your weight and food — we\'ll compare expected vs. observed once the window closes.',
         cta: 'View calibration',
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CalibrationDashboardScreen(app: freshApp, controller: controller))).then((_) => onReturn()),
+        onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => CalibrationDashboardScreen(app: freshApp, controller: controller))).then((_) => onReturn()),
       );
     }
 
@@ -936,7 +937,7 @@ class _CalibrationEntryCard extends StatelessWidget {
               ? 'Your 14-day window is done. This study clears ${left == 0 ? 'today' : 'tomorrow'} — open it while it\'s here.'
               : 'Your 14-day window is done. This study stays here for $left more days, then it clears.',
       cta: 'View results',
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CalibrationDashboardScreen(app: freshApp, controller: controller))).then((_) => onReturn()),
+      onTap: () => Navigator.of(context).push(AppRoute(builder: (_) => CalibrationDashboardScreen(app: freshApp, controller: controller))).then((_) => onReturn()),
     );
   }
 

@@ -7,6 +7,7 @@ import '../../../shared/lib/macro_totals.dart';
 import '../../../app/app_state.dart';
 import '../data/meal_repository.dart';
 import 'log_food_sheet.dart';
+import '../../../shared/responsive.dart';
 
 class NutritionScreen extends StatefulWidget {
   final AppState app;
@@ -106,10 +107,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
     final tdee = (widget.app.data.plan != null ? widget.app.data.plan!['tdee'] : null) ?? calGoal;
     final deficit = ((tdee as num) - (kcal - burned)).round();
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      children: [
-        SizedBox(height: 8),
+    final left = <Widget>[
         Padding(
           padding: const EdgeInsets.only(bottom: 14),
           child: AppCard(
@@ -217,6 +215,8 @@ class _NutritionScreenState extends State<NutritionScreen> {
             ),
           ),
         ),
+    ];
+    final right = <Widget>[
         const Eyebrow("Today's meals"),
         if (meals.isEmpty)
           Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Nothing logged yet.', style: TextStyle(color: T.muted, fontSize: 13)))
@@ -236,7 +236,17 @@ class _NutritionScreenState extends State<NutritionScreen> {
                   ],
                 ),
               )),
-      ],
-    );
+    ];
+
+    return LayoutBuilder(builder: (context, c) {
+      final wide = c.maxWidth >= Responsive.wideContent;
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        children: [
+          const SizedBox(height: 8),
+          if (wide) TwoPane(left: left, right: right) else ...[...left, ...right],
+        ],
+      );
+    });
   }
 }

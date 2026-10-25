@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme.dart';
 import '../pressable_scale.dart';
 import 'motion.dart';
+import '../../responsive.dart';
 
 /// Fades + slides one list item in, delayed by [index] steps — wrap each
 /// item of a list with this (passing its position) for a lightweight
@@ -157,10 +158,25 @@ Widget pageScaffold({
 }
 
 Future<R?> showAppSheet<R>(BuildContext context, Widget child) {
+  // Tablet and desktop: a right-hand panel instead of a bottom sheet.
+  if (useSidePanel(context)) {
+    return showSidePanel<R>(
+      context,
+      width: 460,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: SafeArea(
+          child: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(22, 22, 22, 22), child: child),
+        ),
+      ),
+    );
+  }
   return showModalBottomSheet<R>(
     context: context,
     backgroundColor: T.surface,
     isScrollControlled: true,
+    // Centered and capped so a sheet doesn't span a whole desktop window.
+    constraints: const BoxConstraints(maxWidth: 560),
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(T.rXL))),
     builder: (ctx) {
       // Read live from `ctx` (the sheet's own context) instead of a value
