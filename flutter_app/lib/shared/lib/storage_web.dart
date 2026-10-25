@@ -19,14 +19,14 @@ class FoodRow {
 }
 
 /// Browser-storage-backed store — `sqflite` has no web implementation at
-/// all, so this mirrors [Backend]'s native (storage_io.dart) public API
+/// all, so this mirrors [LocalBackend]'s native (storage_io.dart) public API
 /// exactly, backed by `shared_preferences` (plain `window.localStorage` on
 /// web) instead of a real SQLite file. No caller in lib/features/** needs to
 /// know which backend is active; `storage.dart` picks this file on web via
 /// a conditional export.
-class Backend {
-  Backend._();
-  static final Backend instance = Backend._();
+class LocalBackend {
+  LocalBackend._();
+  static final LocalBackend instance = LocalBackend._();
   SharedPreferences? _prefs;
 
   Future<SharedPreferences> get _sp async => _prefs ??= await SharedPreferences.getInstance();

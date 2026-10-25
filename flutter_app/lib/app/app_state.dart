@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../shared/lib/storage.dart';
+import '../shared/lib/cloud/api_client.dart';
+import '../features/account/presentation/auth_screens.dart' show RestoreScreen;
 import '../shared/lib/health_service.dart';
 import '../shared/lib/helpers.dart';
 import '../shared/theme.dart';
@@ -172,35 +174,194 @@ class AppController extends StateNotifier<AppState> {
   AppState get current => state;
 
   final _backend = Backend.instance;
+  final _local = LocalBackend.instance;
+  final _api = ApiClient.instance;
   Timer? _healthSyncTimer;
+
+  /// One-line messages for a snackbar (a save that failed and was rolled back, etc.).
+  final notice = ValueNotifier<String?>(null);
 
   static const _healthSyncInterval = Duration(minutes: 5);
 
   Future<void> _init() async {
-    await _backend.init();
-    final users = await _backend.listUsers();
-    final activeStr = await _backend.getMeta('activeUser');
-    final activeId = activeStr != null ? int.tryParse(activeStr) : null;
-    if (users.isEmpty) {
-      state = state.copyWith(view: AppView.onboarding, users: [], ready: true);
+    _api.onSessionLost = _sessionLost;
+    await _local.init();
+    final session = await _api.restore();
+    if (session == SessionState.signedIn) {
+      await _afterSignIn();
       return;
     }
-    final simpleUsers = users.map((u) => SimpleUser(u.id, u.name)).toList();
-    if (activeId != null && users.any((u) => u.id == activeId)) {
-      await loadUser(activeId, simpleUsers);
-      state = state.copyWith(ready: true);
-    } else {
-      state = state.copyWith(view: AppView.picker, users: simpleUsers, ready: true);
+    await _showGate(session);
+  }
+
+  /// Lands on the right sign-in screen: landing (nothing on this device),
+  /// "we found your data" (profiles from before accounts), or "sign in again".
+  Future<void> _showGate(SessionState session, {String? error}) async {
+    final localUsers = (await _local.listUsers()).map((u) => SimpleUser(u.id, u.name)).toList();
+    final mode = session == SessionState.expired
+        ? AuthGateMode.expired
+        : localUsers.isNotEmpty
+            ? AuthGateMode.found
+            : AuthGateMode.landing;
+    state = state.copyWith(
+      ready: true,
+      view: AppView.gate,
+      auth: AuthUi(gateMode: mode, email: _api.email, offline: session == SessionState.offline, error: error, localUsers: localUsers),
+    );
+  }
+
+  void _sessionLost() {
+    if (state.view == AppView.gate) return;
+    state = AppState.loading().copyWith(ready: true);
+    _showGate(SessionState.expired);
+  }
+
+  /// Re-runs startup (the "Try again" button on the offline screen).
+  Future<void> retry() async {
+    state = AppState.loading();
+    await _init();
+  }
+
+  /// Called with the Google ID token from the sign-in button.
+  Future<void> signInWithGoogleToken(String idToken) async {
+    try {
+      await _api.signInWithGoogle(idToken);
+    } on ApiException catch (e) {
+      state = state.copyWith(auth: state.auth.copyWith(error: e.offline ? null : "Couldn't sign you in (${e.message}). Try again.", offline: e.offline));
+      return;
+    }
+    await _afterSignIn(welcome: true);
+  }
+
+  void gateError(String message) => state = state.copyWith(auth: state.auth.copyWith(error: message));
+
+  /// Decides what a freshly authenticated session needs: migrate device data,
+  /// ask about a conflict, onboard a new account, or just load the profiles.
+  Future<void> _afterSignIn({bool welcome = false}) async {
+    final email = _api.email;
+    try {
+      final cloud = await _backend.listUsers();
+      final local = (await _local.listUsers()).map((u) => SimpleUser(u.id, u.name)).toList();
+      if (local.isNotEmpty) {
+        if (cloud.isEmpty) {
+          await _migrate(local);
+        } else {
+          state = state.copyWith(
+            ready: true,
+            view: AppView.conflict,
+            auth: AuthUi(email: email, localUsers: local, cloudCount: cloud.length),
+          );
+        }
+        return;
+      }
+      await _loadAccount(cloud.map((u) => SimpleUser(u.id, u.name)).toList(), welcome: welcome);
+    } on ApiException catch (e) {
+      if (e.status == 401) return; // _sessionLost already moved to the gate
+      await _showGate(e.offline ? SessionState.offline : SessionState.signedOut, error: e.offline ? null : "Couldn't load your account (${e.message}).");
     }
   }
 
-  Future<void> loadUser(int id, [List<SimpleUser>? usersList]) async {
+  /// [welcome] shows the "Welcome back" screen and holds it briefly so it
+  /// doesn't just flash; a silent launch with a saved session goes straight in.
+  Future<void> _loadAccount(List<SimpleUser> users, {bool welcome = false}) async {
+    if (users.isEmpty) {
+      state = state.copyWith(ready: true, view: AppView.onboarding, users: [], auth: AuthUi(email: _api.email));
+      return;
+    }
+    final hold = Future.delayed(welcome ? const Duration(milliseconds: RestoreScreen.totalMs + 200) : Duration.zero);
+    state = state.copyWith(ready: true, view: welcome ? AppView.restoring : AppView.loading, auth: AuthUi(email: _api.email));
+    final activeStr = await _backend.getMeta('activeUser');
+    final activeId = activeStr != null ? int.tryParse(activeStr) : null;
+    if (activeId != null && users.any((u) => u.id == activeId)) {
+      await loadUser(activeId, users, hold);
+    } else if (users.length == 1) {
+      await loadUser(users.first.id, users, hold);
+    } else {
+      await hold;
+      state = state.copyWith(view: AppView.picker, users: users);
+    }
+  }
+
+  /// One-time move of this device's profiles into the account. The device copy
+  /// is only deleted after every profile has been confirmed saved.
+  Future<void> _migrate(List<SimpleUser> local) async {
+    state = state.copyWith(ready: true, view: AppView.migrating, auth: AuthUi(email: _api.email, localUsers: local));
+    final idMap = <int, int>{};
+    try {
+      for (final u in local) {
+        if (idMap.containsKey(u.id)) continue;
+        final data = await _local.getUserData(u.id);
+        final foods = await _local.getFoods(u.id);
+        idMap[u.id] = await _backend.importProfile(localId: u.id, name: u.name, data: data, foods: foods);
+        state = state.copyWith(auth: state.auth.copyWith(migratedIds: {...state.auth.migratedIds, u.id}));
+      }
+    } on ApiException catch (e) {
+      state = state.copyWith(auth: state.auth.copyWith(error: e.offline ? "You're offline. Reconnect and try again." : "Couldn't save (${e.message}). Nothing was removed from this device."));
+      return;
+    }
+    final active = int.tryParse(await _local.getMeta('activeUser') ?? '');
+    if (active != null && idMap[active] != null) await _backend.setMeta('activeUser', idMap[active].toString());
+    for (final u in local) {
+      await _local.deleteUser(u.id);
+    }
+    state = state.copyWith(auth: state.auth.copyWith(migrationDone: true));
+  }
+
+  Future<void> retryMigration() async {
+    final local = (await _local.listUsers()).map((u) => SimpleUser(u.id, u.name)).toList();
+    state = state.copyWith(auth: state.auth.copyWith(error: null));
+    await _migrate(local);
+  }
+
+  Future<void> finishMigration() async {
+    final cloud = await _backend.listUsers();
+    await _loadAccount(cloud.map((u) => SimpleUser(u.id, u.name)).toList());
+  }
+
+  /// The "account already has data" screen: keep both, or use the account's.
+  Future<void> resolveConflict({required bool add}) async {
+    final local = state.auth.localUsers;
+    if (add) {
+      await _migrate(local);
+      return;
+    }
+    for (final u in local) {
+      await _local.deleteUser(u.id);
+    }
+    await finishMigration();
+  }
+
+  Future<void> signOut() async {
+    await _api.signOut();
+    await _resetDevice();
+  }
+
+  Future<void> deleteAccount() async {
+    try {
+      await _backend.deleteAccount();
+    } on ApiException catch (e) {
+      notice.value = e.offline ? "You're offline. Reconnect to delete your account." : "Couldn't delete the account (${e.message}).";
+      return;
+    }
+    await _api.clear();
+    await _resetDevice();
+  }
+
+  Future<void> _resetDevice() async {
+    _healthSyncTimer?.cancel();
+    await _backend.clearMeta('activeUser');
+    state = AppState.loading().copyWith(ready: true);
+    await _showGate(SessionState.signedOut);
+  }
+
+  Future<void> loadUser(int id, [List<SimpleUser>? usersList, Future<void>? hold]) async {
     final ud = await _backend.getUserData(id);
     final data = AppData.fromMap(ud);
     final foodsRaw = await _backend.getFoods(id);
     final users = usersList ?? state.users;
     final user = users.firstWhere((u) => u.id == id, orElse: () => SimpleUser(id, data.settings['name'] ?? 'Me'));
     await _backend.setMeta('activeUser', id.toString());
+    if (hold != null) await hold;
     AppTheme.set(data.settings['themeMode'] == 'light' ? Brightness.light : Brightness.dark);
     state = state.copyWith(
       data: data,
@@ -259,11 +420,22 @@ class AppController extends StateNotifier<AppState> {
     return true;
   }
 
+  /// Optimistic: the screen updates immediately, the write goes to the API in
+  /// the background, and a failed save puts the previous value back.
   Future<void> update(String key, dynamic Function(dynamic prev) fn) async {
     final prev = state.data[key];
     final next = fn(prev);
     final uid = state.user!.id;
-    await _backend.setUserKV(uid, key, next);
+    _applyKey(key, next);
+    try {
+      await _backend.setUserKV(uid, key, next);
+    } on ApiException catch (e) {
+      if (state.user?.id == uid) _applyKey(key, prev);
+      notice.value = e.offline ? "You're offline — that change wasn't saved." : "Couldn't save that change (${e.message}).";
+    }
+  }
+
+  void _applyKey(String key, dynamic next) {
     state = state.copyWith(data: state.data.copyWith(
       settings: key == 'settings' ? sanitizeSettings(Map<String, dynamic>.from(next)) : null,
       weight: key == 'weight' ? List<Map<String, dynamic>>.from(next) : null,
@@ -300,14 +472,14 @@ class AppController extends StateNotifier<AppState> {
 
   Future<void> updateFood(int id, String name, double kcal, double protein, double carb, double fat, double fiber) async {
     final uid = state.user!.id;
-    await _backend.updateFood(id, name, kcal, protein, carb, fat, fiber);
+    await _backend.updateFood(uid, id, name, kcal, protein, carb, fat, fiber);
     final foods = await _backend.getFoods(uid);
     state = state.copyWith(foods: foods);
   }
 
   Future<void> removeFood(int id) async {
     final uid = state.user!.id;
-    await _backend.deleteFood(id);
+    await _backend.deleteFood(uid, id);
     final foods = await _backend.getFoods(uid);
     state = state.copyWith(foods: foods);
   }
@@ -355,7 +527,44 @@ class AppController extends StateNotifier<AppState> {
   void setTab(String tab) => state = state.copyWith(tab: tab);
 }
 
-enum AppView { loading, onboarding, picker, app }
+enum AppView { loading, gate, migrating, conflict, restoring, onboarding, picker, app }
+
+/// Wording for the sign-in gate.
+enum AuthGateMode { landing, found, expired }
+
+/// Everything the pre-app account screens (gate, migration, conflict) show.
+class AuthUi {
+  final AuthGateMode gateMode;
+  final String? email;
+  final bool offline;
+  final String? error;
+  final List<SimpleUser> localUsers;
+  final Set<int> migratedIds;
+  final bool migrationDone;
+  final int cloudCount;
+
+  const AuthUi({
+    this.gateMode = AuthGateMode.landing,
+    this.email,
+    this.offline = false,
+    this.error,
+    this.localUsers = const [],
+    this.migratedIds = const {},
+    this.migrationDone = false,
+    this.cloudCount = 0,
+  });
+
+  AuthUi copyWith({bool? offline, Object? error = _unset, Set<int>? migratedIds, bool? migrationDone}) => AuthUi(
+        gateMode: gateMode,
+        email: email,
+        offline: offline ?? this.offline,
+        error: identical(error, _unset) ? this.error : error as String?,
+        localUsers: localUsers,
+        migratedIds: migratedIds ?? this.migratedIds,
+        migrationDone: migrationDone ?? this.migrationDone,
+        cloudCount: cloudCount,
+      );
+}
 
 class AppState {
   final bool ready;
@@ -367,6 +576,10 @@ class AppState {
   final String tab;
   final HealthSyncStatus healthSyncStatus;
   final DateTime? healthLastSyncedAt;
+  final AuthUi auth;
+
+  /// Signed-in Google account email, for Settings > Account.
+  String? get email => ApiClient.instance.email;
 
   const AppState({
     required this.ready,
@@ -378,6 +591,7 @@ class AppState {
     required this.tab,
     this.healthSyncStatus = HealthSyncStatus.idle,
     this.healthLastSyncedAt,
+    this.auth = const AuthUi(),
   });
 
   factory AppState.loading() => const AppState(
@@ -400,6 +614,7 @@ class AppState {
     String? tab,
     HealthSyncStatus? healthSyncStatus,
     Object? healthLastSyncedAt = _unset,
+    AuthUi? auth,
   }) {
     return AppState(
       ready: ready ?? this.ready,
@@ -411,6 +626,7 @@ class AppState {
       healthSyncStatus: healthSyncStatus ?? this.healthSyncStatus,
       healthLastSyncedAt: identical(healthLastSyncedAt, _unset) ? this.healthLastSyncedAt : healthLastSyncedAt as DateTime?,
       tab: tab ?? this.tab,
+      auth: auth ?? this.auth,
     );
   }
 }

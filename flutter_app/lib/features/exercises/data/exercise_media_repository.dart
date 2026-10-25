@@ -1,3 +1,4 @@
+import '../../../shared/lib/cloud/api_client.dart';
 import '../domain/exercise_media.dart';
 
 /// Resolves an exercise name to its animation.
@@ -16,7 +17,10 @@ import '../domain/exercise_media.dart';
 /// this URL (`video/mp4`, CORS `*`) — served over the network rather than as a
 /// Flutter asset because `VideoPlayerController.asset` doesn't resolve reliably
 /// on Flutter web under a non-root base-href. Point this at a real CDN later.
-const String _vitalBase =
+String get _vitalBase => CloudConfig.cdnUrl.isNotEmpty
+    ? '${CloudConfig.cdnUrl}/v1/exercises/'
+    : _vitalBaseFallback;
+const String _vitalBaseFallback =
     'https://tsrnb.github.io/fitness-tracker/assets/assets/exercises/';
 
 ExerciseMedia? exerciseMediaFor(String exerciseName) {

@@ -46,3 +46,5 @@ app.*.map.json
 
 # AI proxy config for --dart-define-from-file (see secrets.example.json)
 secrets.json
+
+secrets.prod.json

@@ -1,3 +1,4 @@
+import '../../../shared/lib/cloud/api_client.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -24,12 +25,12 @@ import '../domain/calibration_ai.dart';
 /// [AiParseException] on a network/parse failure — the callers all fall
 /// back to their existing deterministic behaviour.
 class CalibrationInsightService {
-  static const _proxyBase = String.fromEnvironment('AI_PROXY_URL');
-  static const _clientKey = String.fromEnvironment('AI_PROXY_CLIENT_KEY');
+  static String get _proxyBase => CloudConfig.aiUrl;
+  static String get _clientKey => ApiClient.instance.accessToken ?? '';
   static bool get isConfigured => _proxyBase.isNotEmpty && _clientKey.isNotEmpty;
 
   static Map<String, String> get _headers => {
-        'X-Client-Key': _clientKey,
+        'Authorization': 'Bearer $_clientKey',
         'Content-Type': 'application/json',
       };
 

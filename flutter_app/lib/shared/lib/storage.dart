@@ -4,3 +4,7 @@
 /// at compile time so every caller can keep importing `storage.dart` without
 /// caring which backend is active.
 export 'storage_io.dart' if (dart.library.html) 'storage_web.dart';
+
+/// The app talks to the cloud-backed [Backend]; [LocalBackend] (above) is only
+/// read once, to move a device's existing profiles into the signed-in account.
+export 'cloud/cloud_backend.dart';

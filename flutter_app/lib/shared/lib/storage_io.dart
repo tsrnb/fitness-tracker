@@ -23,9 +23,9 @@ class FoodRow {
 /// SQLite-backed store (Android/iOS/desktop) mirroring the React app's
 /// sql.js schema: users(id,name,created) · kv(uid,k,v) ·
 /// foods(id,uid,name,kcal,protein,carb,fat,fiber) · meta(k,v)
-class Backend {
-  Backend._();
-  static final Backend instance = Backend._();
+class LocalBackend {
+  LocalBackend._();
+  static final LocalBackend instance = LocalBackend._();
   Database? _db;
 
   Future<Database> get _database async {

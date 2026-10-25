@@ -1,3 +1,4 @@
+import '../../../shared/lib/cloud/api_client.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -12,12 +13,12 @@ import '../domain/kg_progress.dart';
 /// and a plain-text reply instead of a JSON schema — there's only one
 /// sentence-shaped thing being asked for here, not structured data.
 class WeightInsightService {
-  static const _proxyBase = String.fromEnvironment('AI_PROXY_URL');
-  static const _clientKey = String.fromEnvironment('AI_PROXY_CLIENT_KEY');
+  static String get _proxyBase => CloudConfig.aiUrl;
+  static String get _clientKey => ApiClient.instance.accessToken ?? '';
   static bool get isConfigured => _proxyBase.isNotEmpty && _clientKey.isNotEmpty;
 
   static Map<String, String> get _headers => {
-        'X-Client-Key': _clientKey,
+        'Authorization': 'Bearer $_clientKey',
         'Content-Type': 'application/json',
       };
 

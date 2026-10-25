@@ -1,3 +1,4 @@
+import '../../../shared/lib/cloud/api_client.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -12,8 +13,8 @@ import '../../nutrition/data/openai_food_service.dart' show aiModelName;
 /// Throws [AiConfigException] when the proxy is unset and [AiParseException]
 /// on any network or parse failure — the chat screen shows both inline.
 class MuscleInsightService {
-  static const _proxyBase = String.fromEnvironment('AI_PROXY_URL');
-  static const _clientKey = String.fromEnvironment('AI_PROXY_CLIENT_KEY');
+  static String get _proxyBase => CloudConfig.aiUrl;
+  static String get _clientKey => ApiClient.instance.accessToken ?? '';
   static bool get isConfigured => _proxyBase.isNotEmpty && _clientKey.isNotEmpty;
 
   static const _system = '''
@@ -39,7 +40,7 @@ How to talk:
       res = await http
           .post(
             Uri.parse('$_proxyBase/chat'),
-            headers: {'X-Client-Key': _clientKey, 'Content-Type': 'application/json'},
+            headers: {'Authorization': 'Bearer $_clientKey', 'Content-Type': 'application/json'},
             body: jsonEncode({
               'model': aiModelName,
               'temperature': 0.5,

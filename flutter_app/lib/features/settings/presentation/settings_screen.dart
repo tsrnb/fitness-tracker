@@ -1,3 +1,4 @@
+import '../../account/presentation/auth_screens.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -342,6 +343,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           onTap: () => _navKey.currentState!.pushNamed('insights')),
       _sectionLabel('You & data'),
       settingsNavRow(context, icon: Icons.badge, label: 'Personal details', sub: 'Name, age, height, weight', onTap: () => _navKey.currentState!.pushNamed('personal')),
+      settingsNavRow(context,
+          icon: Icons.account_circle,
+          label: 'Account',
+          sub: widget.app.email ?? 'Signed in with Google',
+          onTap: () => Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(builder: (_) => AccountScreen(app: widget.app, controller: widget.controller)))),
       settingsNavRow(context, icon: Icons.storage, label: 'Data & export', sub: 'Export your database', onTap: () => _navKey.currentState!.pushNamed('data')),
     ];
     return pageScaffold(

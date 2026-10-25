@@ -1,3 +1,4 @@
+import '../../../shared/lib/cloud/api_client.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -18,12 +19,12 @@ const aiModelName = 'gpt-4o-mini';
 /// spending your OpenAI credits; it still ends up in the compiled JS same
 /// as before, but there's nothing here for a scanner to find and kill.
 class OpenAiFoodService {
-  static const _proxyBase = String.fromEnvironment('AI_PROXY_URL');
-  static const _clientKey = String.fromEnvironment('AI_PROXY_CLIENT_KEY');
+  static String get _proxyBase => CloudConfig.aiUrl;
+  static String get _clientKey => ApiClient.instance.accessToken ?? '';
   static bool get isConfigured => _proxyBase.isNotEmpty && _clientKey.isNotEmpty;
 
   static Map<String, String> get _headers => {
-        'X-Client-Key': _clientKey,
+        'Authorization': 'Bearer $_clientKey',
         'Content-Type': 'application/json',
       };
 
