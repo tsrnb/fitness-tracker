@@ -203,7 +203,7 @@ void main() {
     expect(find.text('A gap between your log and your scale'), findsOneWidget);
     expect(find.textContaining('your food log had predicted'), findsOneWidget);
 
-    // AI_PROXY_URL/AI_PROXY_CLIENT_KEY aren't passed via --dart-define in
+    // AI_URL isn't passed via --dart-define (and nobody is signed in) in
     // this test run, so WeightInsightService.isConfigured is false — tapping
     // "Ask AI why" deterministically exercises the config-missing path
     // rather than needing a real (or mocked) network call.

@@ -7,7 +7,7 @@ import '../../nutrition/data/openai_food_service.dart' show aiModelName;
 import '../domain/calibration_ai.dart';
 
 /// Every AI touchpoint in the 14-Day Calibration — all through the same
-/// Cloudflare Worker proxy (`AI_PROXY_URL` / `AI_PROXY_CLIENT_KEY`, `/chat`
+/// AI proxy (`AI_URL`, `/chat`
 /// route) `OpenAiFoodService` already uses, just with calibration-shaped
 /// prompts and JSON responses.
 ///

@@ -73,10 +73,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  assets:
-    # Compressed Vital Animations exercise clips (480px, no audio). Bundled for
-    # now; a CDN can take over by pointing ExerciseMedia at https URLs instead.
-    - assets/exercises/
+  # No bundled assets: exercise clips are served from the CDN (see CDN_URL).
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

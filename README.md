@@ -1,46 +1,31 @@
-# CutTracker v2.1
+# CutTracker
 
-A private, offline fitness tracker with built-in coaching for a fat-loss / muscle-retention phase.
+A personal fitness tracker for a fat-loss or muscle-gain phase: diet and macros, training plans with an exercise
+library and animations, weight and strength progress, a 14-day calibration, and AI help for logging and insights.
+Sign-in is Google only, and each person's data lives in their account.
 
-## What's new in this update
-- **73-exercise library**, 5 more per body-part section (Chest/Back/Shoulders/Legs/Arms/Core), mixing
-  machine and free-weight/bodyweight variations.
-- **Diet calorie counter now includes today's activity burn** — your "kcal left" allowance grows with
-  logged cardio, same on Home and Diet screens.
-- **Today's deficit/surplus stat** on the Diet screen, computed against your coach-estimated maintenance
-  (TDEE), net of activity burned.
-- **Quick log a meal** — type or paste one item per line as `name, kcal, protein` and it parses, totals,
-  and logs the whole meal at once. See "format?" in the Diet screen for the exact syntax.
-- **Progress → Photos removed** per request (Weight / Strength / Activity remain).
-- **Train screen simplified** — one Save/Update action per exercise instead of two overlapping controls;
-  tapping the row expands/collapses, a "Logged" badge shows once you've saved today's sets.
-- **Safe-area support** — fixed the top status bar and bottom nav getting clipped when installed as a
-  home-screen app (this only shows up in standalone/PWA mode, not in a normal browser tab).
-- Diet custom-item entry box fixed (kcal/protein fields were misaligned).
+| Folder | What it is |
+|---|---|
+| `flutter_app/` | The app (web, Android, iOS). See its README to run it. |
+| `infra/` | The AWS backend (CDK): API, database, AI proxy, CDN for exercise clips. See its README to deploy. |
+| `scripts/` | `deploy-gh-pages.sh`, which builds the web app and publishes it to GitHub Pages. |
 
-## Diet quick-log format
-```
-2 Rotis, 240, 6
-Dal tadka, 180, 12
-Paneer bhurji, 220, 14
-```
-One item per line: `name, kcal, protein`. Protein is optional — `name, kcal` also works.
-It shows a running preview with totals before you tap **Log meal**.
+## Environments
 
-## Run locally
+Two separate AWS stacks, `CutTracker-dev` and `CutTracker-prod`, each with its own config file in `flutter_app/`
+(`secrets.dev.json`, `secrets.prod.json`; git-ignored, see `secrets.example.json`). The live site at
+https://tsrnb.github.io/fitness-tracker/ uses prod.
+
+## Publish the web app
+
 ```bash
-npm install
-npm run dev      # http://localhost:5173
-npm run build    # outputs to dist/
+npm run deploy
 ```
 
-## Put it on your iPhone
-Easiest: use the single-file `CutTracker.html` (no build needed) — drop it on https://app.netlify.com/drop,
-open the URL in Safari, then Share → **Add to Home Screen**.
+Builds `flutter_app` with `secrets.prod.json` and pushes the result to the `gh-pages` branch. It stops if that file
+is missing or points at localhost.
 
-Or deploy this project: `npm run build`, then drag the `dist/` folder onto Netlify Drop and Add to Home Screen.
+## Sign-in access
 
-## Notes
-- Storage is **on-device only** — nothing leaves your phone, no account, no sync, no AI calls.
-- If SQLite/WASM can't load it falls back to localStorage automatically, so it never bricks.
-- Program avoids conventional deadlifts, RDLs, walking lunges and single-arm DB rows by design.
+While the Google OAuth consent screen is in Testing mode, only emails listed under Google Auth Platform > Audience >
+Test users can sign in. Add new testers there first.

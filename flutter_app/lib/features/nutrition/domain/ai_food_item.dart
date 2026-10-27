@@ -37,7 +37,7 @@ class AiFoodParseResult {
   const AiFoodParseResult({required this.items, required this.rawContent, this.reply, this.remember = const []});
 }
 
-/// Thrown when `AI_PROXY_URL`/`AI_PROXY_CLIENT_KEY` weren't provided at build time.
+/// Thrown when `AI_URL` wasn't provided at build time or nobody is signed in.
 class AiConfigException implements Exception {}
 
 /// Thrown for anything else that goes wrong — network, bad response shape,

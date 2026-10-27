@@ -7,8 +7,8 @@ import '../../nutrition/data/openai_food_service.dart' show aiModelName;
 
 /// Form cues, written by the AI.
 ///
-/// Same Cloudflare Worker proxy as the rest of the app's AI features (same
-/// `AI_PROXY_URL` / `AI_PROXY_CLIENT_KEY`, same `/chat` route). Cues are
+/// Same AI proxy as the rest of the app's AI features (same
+/// `AI_URL`, same `/chat` route). Cues are
 /// intrinsic to an exercise and never change, so the first answer for an
 /// exercise is cached to disk and every later open is instant and free.
 ///

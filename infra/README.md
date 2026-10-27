@@ -43,8 +43,10 @@ Outputs: `ApiUrl`, `ChatUrl`, `CdnUrl`, `AssetsBucket`.
 
 ## 5. Point the app at it
 
-Fill `flutter_app/secrets.json` (see `secrets.example.json`) with `API_URL`, `AI_URL`, `CDN_URL`,
-`GOOGLE_WEB_CLIENT_ID`, then build with `--dart-define-from-file=secrets.json`.
+Fill `flutter_app/secrets.dev.json` (dev stack) and `flutter_app/secrets.prod.json` (prod stack), both git-ignored, from
+`secrets.example.json`: `API_URL`, `AI_URL`, `CDN_URL`, `GOOGLE_WEB_CLIENT_ID`. In VS Code pick a "dev" or "prod" launch
+config, or pass `--dart-define-from-file=secrets.dev.json` (or `.prod.json`). The prod API only accepts requests from
+`https://tsrnb.github.io`, so run prod from a phone or emulator; use dev for Chrome on localhost.
 
 ## Cost notes
 

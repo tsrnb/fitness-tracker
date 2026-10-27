@@ -4,7 +4,7 @@
 // log does nothing" result card; and conversation history must actually
 // carry a prior exchange into the next call, so a follow-up has something
 // to follow up on. Network is faked entirely — nothing here talks to the
-// real Cloudflare proxy/OpenAI.
+// real AI proxy/OpenAI.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';

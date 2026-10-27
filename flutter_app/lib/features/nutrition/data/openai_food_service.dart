@@ -11,15 +11,13 @@ import '../domain/ai_food_item.dart';
 /// the request bodies across the app omit `temperature`.
 const aiModelName = 'gpt-6-luna';
 
-/// Calls a small Cloudflare Worker (`cf-worker/`) instead of OpenAI directly.
+/// Calls the AI proxy (`AI_URL`, an AWS Lambda) instead of OpenAI directly.
 /// A key baked into this compiled web bundle would be scraped from the
 /// public gh-pages site and auto-revoked by OpenAI's own leaked-key
-/// scanning — that happened twice before this proxy existed. The real
-/// OPENAI_API_KEY now only ever lives in Cloudflare (`wrangler secret put`).
-/// `AI_PROXY_CLIENT_KEY` below is *not* that key — it's a low-value shared
-/// secret whose only job is stopping randoms who find this URL from
-/// spending your OpenAI credits; it still ends up in the compiled JS same
-/// as before, but there's nothing here for a scanner to find and kill.
+/// scanning — that happened twice before the proxy existed. The real
+/// OpenAI key only ever lives in AWS SSM (`/cuttracker/<stage>/openai-key`).
+/// Requests carry the signed-in user's session token, and the proxy applies a
+/// per-user daily limit, so strangers who find the URL can't spend your credits.
 class OpenAiFoodService {
   static String get _proxyBase => CloudConfig.aiUrl;
   static String get _clientKey => ApiClient.instance.accessToken ?? '';
@@ -211,7 +209,7 @@ The "remember" array is separate from "items": include a food in it only when th
 
   /// Turns an error response into a message that tells the user what to
   /// actually do about it. Two sources land here: the proxy's own 401
-  /// ("unauthorized" — `AI_PROXY_CLIENT_KEY` mismatch) and OpenAI's errors
+  /// ("unauthorized" — no valid session) and OpenAI's errors
   /// passed through verbatim by the proxy (`insufficient_quota` and
   /// `rate_limit_exceeded` both come back as HTTP 429 but mean very
   /// different things, so the status code alone isn't enough).
@@ -226,10 +224,10 @@ The "remember" array is separate from "items": include a food in it only when th
     final apiMessage = error?['message'] as String?;
 
     if (apiMessage == 'unauthorized' && code == null) {
-      return "This app's proxy credentials look wrong — check AI_PROXY_CLIENT_KEY in secrets.json.";
+      return "Your session isn't valid. Sign out and sign in again.";
     }
     if (res.statusCode == 401 || code == 'invalid_api_key') {
-      return "The proxy's OpenAI key looks invalid — check the Cloudflare Worker's OPENAI_API_KEY secret.";
+      return "The AI proxy's OpenAI key looks invalid — update /cuttracker/<stage>/openai-key in AWS SSM.";
     }
     if (code == 'insufficient_quota') {
       return "This OpenAI account has no billing set up (or hit its usage cap) — add a payment method at platform.openai.com/settings/organization/billing, then try again.";

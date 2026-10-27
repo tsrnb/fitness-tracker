@@ -3,31 +3,23 @@ import '../domain/exercise_media.dart';
 
 /// Resolves an exercise name to its animation.
 ///
-///  * [_vitalAsset] — bundled Vital Animations clips (compressed MP4s in
-///    `assets/exercises/`). Move to a CDN later by returning an https URL with
-///    `isAsset: false`.
+///  * [_vitalAsset] — Vital Animations clips (compressed MP4s), served from the
+///    CDN at `CDN_URL/v1/exercises/`. Nothing is bundled in the app. Without a
+///    `CDN_URL` these exercises fall back to their GIF, or to no animation.
 ///  * [_gifFallback] — everything else, a remote GIF from a public
 ///    exercise-animation dataset (media © Gym visual — gymvisual.com) until the
 ///    full Vital library is licensed.
 ///
 /// Returns null when neither has the exercise — callers treat that as "don't
 /// show one", never an error.
-/// Where the compressed Vital clips are served from. They live in
-/// `assets/exercises/` in this repo and the gh-pages deploy publishes them at
-/// this URL (`video/mp4`, CORS `*`) — served over the network rather than as a
-/// Flutter asset because `VideoPlayerController.asset` doesn't resolve reliably
-/// on Flutter web under a non-root base-href. Point this at a real CDN later.
-String get _vitalBase => CloudConfig.cdnUrl.isNotEmpty
-    ? '${CloudConfig.cdnUrl}/v1/exercises/'
-    : _vitalBaseFallback;
-const String _vitalBaseFallback =
-    'https://tsrnb.github.io/fitness-tracker/assets/assets/exercises/';
+String? get _vitalBase => CloudConfig.cdnUrl.isEmpty ? null : '${CloudConfig.cdnUrl}/v1/exercises/';
 
 ExerciseMedia? exerciseMediaFor(String exerciseName) {
   final file = _vitalAsset[exerciseName];
-  if (file != null) {
+  final base = _vitalBase;
+  if (file != null && base != null) {
     return ExerciseMedia(
-      source: '$_vitalBase$file',
+      source: '$base$file',
       kind: ExerciseMediaKind.mp4,
     );
   }
@@ -43,7 +35,7 @@ ExerciseMedia? exerciseMediaFor(String exerciseName) {
 }
 
 bool hasExerciseAnimation(String exerciseName) =>
-    _vitalAsset.containsKey(exerciseName) ||
+    (_vitalAsset.containsKey(exerciseName) && _vitalBase != null) ||
     _gifFallback.containsKey(exerciseName);
 
 // ── Vital Animations (MP4) — curated from the "50 gym workouts" pack ──────────

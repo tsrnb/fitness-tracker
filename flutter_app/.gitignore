@@ -46,5 +46,11 @@ app.*.map.json
 
 # AI proxy config for --dart-define-from-file (see secrets.example.json)
 secrets.json
+secrets.dev.json
 
 secrets.prod.json
+
+# Generated, not source
+/android/build/
+/test/failures/
+**/xcshareddata/swiftpm/

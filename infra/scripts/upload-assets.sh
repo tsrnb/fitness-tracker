@@ -3,7 +3,7 @@
 set -euo pipefail
 BUCKET="${1:?usage: upload-assets.sh <bucket> <cdn-url>}"
 CDN="${2:?usage: upload-assets.sh <bucket> <cdn-url>}"
-SRC="$(cd "$(dirname "$0")/../../flutter_app/assets/exercises" && pwd)"
+SRC="$(cd "$(dirname "$0")/../assets/exercises" && pwd)"
 aws s3 sync "$SRC" "s3://$BUCKET/v1/exercises/" \
   --exclude "*" --include "*.mp4" \
   --content-type video/mp4 \

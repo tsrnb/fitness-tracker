@@ -7,8 +7,8 @@ import '../../nutrition/data/openai_food_service.dart' show aiModelName;
 import '../domain/kg_progress.dart';
 
 /// Explains a [KgGapInsight] in plain language — reuses the exact same
-/// Cloudflare Worker proxy `OpenAiFoodService` calls for meal parsing (same
-/// `AI_PROXY_URL`/`AI_PROXY_CLIENT_KEY`, same `/chat` route, same
+/// AI proxy `OpenAiFoodService` calls for meal parsing (same
+/// `AI_URL`, same `/chat` route, same
 /// never-ships-a-real-OpenAI-key reasoning), just with a different prompt
 /// and a plain-text reply instead of a JSON schema — there's only one
 /// sentence-shaped thing being asked for here, not structured data.

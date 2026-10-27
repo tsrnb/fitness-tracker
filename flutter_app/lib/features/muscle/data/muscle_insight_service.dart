@@ -5,8 +5,8 @@ import 'package:http/http.dart' as http;
 import '../../nutrition/domain/ai_food_item.dart' show AiConfigException, AiParseException;
 import '../../nutrition/data/openai_food_service.dart' show aiModelName;
 
-/// The "Know why" assistant on the Muscle screens. Same Cloudflare Worker
-/// proxy (`AI_PROXY_URL` / `AI_PROXY_CLIENT_KEY`, `/chat`) the calibration
+/// The "Know why" assistant on the Muscle screens. Same AI proxy
+/// (`AI_URL`, `/chat`) the calibration
 /// and food assistants use; this one is a conversational follow-up over a
 /// compact digest of the user's own data (see `buildMuscleDigest`).
 ///
