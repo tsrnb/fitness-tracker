@@ -44,15 +44,15 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
       onTap: _tap,
       downScale: 0.97,
       child: Container(
-        height: 56,
+        height: 48, // Google spec is 40px; 48 keeps a full-size touch target
         alignment: Alignment.center,
         decoration: const BoxDecoration(color: T.paper, borderRadius: BorderRadius.all(Radius.circular(T.pill))),
         child: _busy
             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4, color: T.paperInk))
             : Row(mainAxisSize: MainAxisSize.min, children: [
-                const SizedBox(width: 20, height: 20, child: CustomPaint(painter: _GPainter())),
-                const SizedBox(width: 12),
-                const Text('Continue with Google', style: TextStyle(color: T.paperInk, fontSize: 15, fontWeight: FontWeight.w700)),
+                const SizedBox(width: 18, height: 18, child: CustomPaint(painter: _GPainter())),
+                const SizedBox(width: 10),
+                const Text('Continue with Google', style: TextStyle(color: T.paperInk, fontSize: 14, fontWeight: FontWeight.w700)),
               ]),
       ),
     );

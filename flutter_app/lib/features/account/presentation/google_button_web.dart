@@ -43,8 +43,9 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
 
   @override
   Widget build(BuildContext context) {
+    // Google's standard button: 40px tall, 400px max width, rendered unscaled.
     return SizedBox(
-      height: 56,
+      height: 48,
       child: Center(
         child: web.renderButton(
           configuration: web.GSIButtonConfiguration(
