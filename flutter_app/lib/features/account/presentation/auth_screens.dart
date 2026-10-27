@@ -547,29 +547,71 @@ class _RestoreScreenState extends State<RestoreScreen> with SingleTickerProvider
       builder: (context, _) {
         final ms = _c.value * RestoreScreen.totalMs;
         final ready = ms >= 2200;
+        final checklist = Container(
+          decoration: BoxDecoration(color: T.surface, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(T.rL)),
+          clipBehavior: Clip.antiAlias,
+          child: Column(children: [
+            for (var i = 0; i < _steps.length; i++) ...[
+              if (i > 0) Divider(height: 1, thickness: 1, color: T.line),
+              _row(i, ms),
+            ],
+          ]),
+        );
+        final button = PrimaryButton(opacity: ready ? 1 : 0.4, onTap: null, child: const Text('Open CutTracker'));
+        Widget heading(double titleSize) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _eyebrow('SIGNED IN'),
+              const SizedBox(height: 10),
+              Text('Welcome back.', style: Type.display.copyWith(fontSize: titleSize)),
+              const SizedBox(height: 10),
+              Text('Restoring your profiles from your account. Keep the app open.', style: Type.body.copyWith(color: T.muted)),
+            ]);
+
+        // Tablet and desktop: brand top-left, one centered card.
+        if (MediaQuery.sizeOf(context).width >= 720) {
+          return Scaffold(
+            backgroundColor: T.bg,
+            body: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(48, 40, 48, 40),
+                child: Column(children: [
+                  Align(alignment: Alignment.centerLeft, child: _brand()),
+                  Expanded(
+                    child: Center(
+                      child: SingleChildScrollView(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 520),
+                          child: Container(
+                            padding: const EdgeInsets.all(36),
+                            decoration: BoxDecoration(color: T.surface, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(T.rXL)),
+                            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              if (widget.email != null) ...[_emailChip(widget.email!), const SizedBox(height: 28)],
+                              heading(34),
+                              const SizedBox(height: 28),
+                              checklist,
+                              const SizedBox(height: 28),
+                              button,
+                            ]),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+          );
+        }
+
         return _page(
           top: [
             if (widget.email != null) _emailChip(widget.email!),
             const SizedBox(height: 40),
-            _eyebrow('SIGNED IN'),
-            const SizedBox(height: 10),
-            Text('Welcome back.', style: Type.display),
-            const SizedBox(height: 10),
-            Text('Restoring your profiles from your account. Keep the app open.', style: Type.body.copyWith(color: T.muted)),
+            heading(Type.display.fontSize ?? 30),
             const SizedBox(height: 32),
-            Container(
-              decoration: BoxDecoration(color: T.surface, border: Border.all(color: T.line), borderRadius: BorderRadius.circular(T.rL)),
-              clipBehavior: Clip.antiAlias,
-              child: Column(children: [
-                for (var i = 0; i < _steps.length; i++) ...[
-                  if (i > 0) Divider(height: 1, thickness: 1, color: T.line),
-                  _row(i, ms),
-                ],
-              ]),
-            ),
+            checklist,
             const Spacer(),
           ],
-          bottom: PrimaryButton(opacity: ready ? 1 : 0.4, onTap: null, child: const Text('Open CutTracker')),
+          bottom: button,
         );
       },
     );

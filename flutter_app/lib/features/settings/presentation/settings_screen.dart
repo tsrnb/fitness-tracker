@@ -2,6 +2,7 @@ import '../../account/presentation/auth_screens.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../../shared/responsive.dart';
 import '../../../shared/theme.dart';
 import '../../../shared/widgets/atoms.dart';
 import '../../../shared/widgets/pressable_scale.dart';
@@ -347,7 +348,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           icon: Icons.account_circle,
           label: 'Account',
           sub: widget.app.email ?? 'Signed in with Google',
-          onTap: () => Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(builder: (_) => AccountScreen(app: widget.app, controller: widget.controller)))),
+          onTap: () => Navigator.of(context, rootNavigator: true).push(AppRoute(builder: (_) => AccountScreen(app: widget.app, controller: widget.controller)))),
       settingsNavRow(context, icon: Icons.storage, label: 'Data & export', sub: 'Export your database', onTap: () => _navKey.currentState!.pushNamed('data')),
     ];
     return pageScaffold(
