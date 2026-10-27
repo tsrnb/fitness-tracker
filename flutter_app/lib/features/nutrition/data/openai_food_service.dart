@@ -6,8 +6,10 @@ import '../domain/ai_food_item.dart';
 
 /// The OpenAI model Ask AI (both meal logging and nutrition advice) runs
 /// on — pulled out as a constant so the UI can show it (e.g. in the chat
-/// header) without duplicating the string.
-const aiModelName = 'gpt-4o-mini';
+/// header) without duplicating the string. gpt-6 models only accept the
+/// default temperature and `max_completion_tokens` (not `max_tokens`), so
+/// the request bodies across the app omit `temperature`.
+const aiModelName = 'gpt-6-luna';
 
 /// Calls a small Cloudflare Worker (`cf-worker/`) instead of OpenAI directly.
 /// A key baked into this compiled web bundle would be scraped from the
@@ -99,11 +101,10 @@ The "remember" array is separate from "items": include a food in it only when th
             headers: _headers,
             body: jsonEncode({
               'model': aiModelName,
-              'temperature': 0.3,
               // A real advice answer runs longer than a meal-parse JSON blob
               // — generous enough for a genuine explanation, capped so an
               // open-ended question can't run away with an unbounded reply.
-              'max_tokens': 700,
+              'max_completion_tokens': 700,
               'response_format': {'type': 'json_object'},
               'messages': messages,
             }),

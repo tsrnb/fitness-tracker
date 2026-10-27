@@ -48,7 +48,6 @@ Of those, days with food actually logged: ${gap.daysLogged}
             headers: _headers,
             body: jsonEncode({
               'model': aiModelName,
-              'temperature': 0.4,
               'messages': [
                 {'role': 'system', 'content': _systemPrompt},
                 {'role': 'user', 'content': prompt},

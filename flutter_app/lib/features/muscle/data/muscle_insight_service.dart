@@ -43,8 +43,7 @@ How to talk:
             headers: {'Authorization': 'Bearer $_clientKey', 'Content-Type': 'application/json'},
             body: jsonEncode({
               'model': aiModelName,
-              'temperature': 0.5,
-              'max_tokens': 450,
+              'max_completion_tokens': 450,
               'messages': [
                 {'role': 'system', 'content': _system},
                 {'role': 'system', 'content': 'The person\'s data:\n${jsonEncode(digest)}'},

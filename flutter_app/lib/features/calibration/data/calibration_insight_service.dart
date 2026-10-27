@@ -216,8 +216,7 @@ Respond with ONLY valid JSON, no markdown fences:
             headers: _headers,
             body: jsonEncode({
               'model': aiModelName,
-              'temperature': 0.4,
-              'max_tokens': maxTokens,
+              'max_completion_tokens': maxTokens,
               if (jsonObject) 'response_format': {'type': 'json_object'},
               'messages': messages,
             }),

@@ -72,8 +72,7 @@ Respond with ONLY valid JSON, no markdown fences: {"cues": ["...", "...", "..."]
           },
           body: jsonEncode({
             'model': aiModelName,
-            'temperature': 0.2,
-            'max_tokens': 300,
+            'max_completion_tokens': 300,
             'response_format': {'type': 'json_object'},
             'messages': [
               {'role': 'system', 'content': _system},
